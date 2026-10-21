@@ -24,23 +24,37 @@ Diseñada con estándares de diseño nativos de **iOS (Human Interface Guideline
 
 ## ✨ Características Principales
 
-### 👥 Gestión de Alumnos
-- **Ficha completa:** Nombre, apellidos, teléfono, correo electrónico, dirección y fecha de nacimiento.
-- **Contacto de Padres/Tutores:** Registro del nombre y teléfono del tutor con acceso rápido para llamadas/mensajes.
+### 👥 Gestión de Alumnos y Acceso Multirrol
+- **Formulario ágil y simplificado:** Nombre del alumno, curso escolar, dirección, teléfono y nombre de los padres.
+- **Códigos de Acceso Únicos:** Generación automática de un código seguro por estudiante (ej: `ALE-4819`) que el profesor comparte con el alumno y sus padres para acceder a sus respectivos portales.
 - **Historial individual:** Acceso instantáneo a todas las clases impartidas y pagos recibidos del alumno.
 - **Control de saldo en tiempo real:** Cálculo automático de balance facturado, cobrado y pendiente de pago.
 - **Búsqueda y filtros:** Filtrado rápido por estado (Activos/Inactivos) y buscador en tiempo real.
 
-### 📅 Control y Programación de Clases
-- **Planificador:** Asignación de alumno, asignatura, fecha y horarios (inicio y fin con cálculo automático de duración en minutos).
-- **Tarifas dinámicas:** Precio por hora (€/h) con cálculo en vivo del importe total según la duración de la sesión.
+### 🎭 Tres Roles de Usuario Integrados
+- 👨‍🏫 **Perfil Profesor (Administrador):**
+  - Control absoluto: crea y edita alumnos, programa clases individuales o recurrentes, registra cobros y visualiza balances generales.
+  - Al dar de alta un alumno, el sistema genera automáticamente su código de acceso.
+- 🎒 **Perfil Estudiante:**
+  - Consulta rápida de su horario semanal y próximas clases particulares.
+  - Lista interactiva de deberes y tareas pendientes asignadas por el profesor, con casillas de verificación para marcar el progreso.
+- 👨‍👩‍👧 **Perfil Padre / Familia:**
+  - Supervisión clara del balance económico: clases impartidas, total abonado y saldo pendiente de pago.
+  - Asistente de pago por **Bizum** (con copia rápida del teléfono del profesor e importe pendiente) o registro en **Efectivo**.
+  - Visualización del calendario de clases de su hijo/a y seguimiento de las tareas escolares.
+  - **Selector de Rol y Acceso:** Barra superior integrada para cambiar fácilmente de perfil o introducir el código de estudiante asignado.
+
+### 📅 Control y Repetición Inteligente de Clases (Calendario Escolar)
+- **Programador de clases periódicas:** Posibilidad de repetir la clase automáticamente semanalmente durante 1 mes, un trimestre o hasta fin de curso (junio).
+- **Integración con el Calendario Escolar Español:** Detección y salto automático de días no lectivos, festivos nacionales (Navidad, Año Nuevo, Reyes, Semana Santa, Fiesta Nacional, Constitución, etc.) y periodos vacacionales.
+- **Previsualización en tiempo real:** Al configurar la periodicidad, la app calcula e informa exactamente cuántas sesiones se crearán y qué días festivos han sido omitidos del calendario.
+- **Tarifas y duraciones flexibles:** Precio por hora (€/h) con cálculo dinámico del importe según los minutos de sesión.
 - **Modalidades de clase:** Presencial, Online (videollamada) o A domicilio.
 - **Ciclo de estados:** *Programada*, *Completada*, *Cancelada* y *No asistió el alumno*.
 - **Seguimiento pedagógico:** Registro de notas de la clase y tareas/deberes asignados para la siguiente sesión.
 
-### 💰 Gestión Financiera y Cobros
-- **Registro de pagos:** Importe, fecha, método de pago, concepto y notas del comprobante.
-- **Métodos soportados:** Bizum, Efectivo, Transferencia bancaria, PayPal y Otros.
+### 💰 Gestión Financiera Simplificada
+- **Métodos de pago adaptados a la realidad:** Bizum y Efectivo como medios prioritarios.
 - **Balance por alumno:** Tabla de control que distingue alumnos al día de alumnos con pagos pendientes, con botón directo de cobro.
 - **Gráficos evolutivos:** Gráfico de barras mensual para analizar la progresión de ingresos.
 
@@ -183,14 +197,16 @@ tutor-app/
 │   └── _layout.tsx               # Enrutador raíz y Stack navigation
 ├── src/
 │   ├── components/               # Componentes UI modulares
-│   │   ├── common/               # Botones, Cards, Inputs, Modales, Pickers
-│   │   ├── students/             # Tarjetas de estudiante
-│   │   ├── classes/              # Tarjetas de sesión de clase
+│   │   ├── common/               # Botones, Cards, Inputs, Modales, RoleSwitcherBar
+│   │   ├── roles/                # Vistas de portal de Estudiante y Familia (Padres)
+│   │   ├── students/             # Tarjetas y listados de estudiante
+│   │   ├── classes/              # Tarjetas de sesión de clase y selectores
 │   │   └── finances/             # Tarjetas de pago y gráficos
 │   ├── constants/                # Tokens de diseño (Colors, Spacing, Theme)
-│   ├── database/                 # Capa SQLite y script de datos iniciales
-│   ├── hooks/                    # Hook useDatabase() con contexto global
-│   └── types/                    # Definiciones TypeScript de entidades
+│   ├── database/                 # Capa SQLite/Web y migraciones con Access Codes
+│   ├── hooks/                    # Hooks useDatabase() y useAuthRole()
+│   ├── utils/                    # Motor de calendario escolar y festivos en España
+│   └── types/                    # Definiciones TypeScript de entidades y roles
 ├── assets/                       # Iconos, SplashScreen y recursos gráficos
 ├── app.json                      # Manifiesto de Expo y bundle identifiers
 ├── eas.json                      # Perfiles de compilación para iOS y Android

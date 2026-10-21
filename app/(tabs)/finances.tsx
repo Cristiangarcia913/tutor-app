@@ -22,6 +22,7 @@ import {
 } from '../../src/components/common';
 import PaymentCard from '../../src/components/finances/PaymentCard';
 import IncomeChart from '../../src/components/finances/IncomeChart';
+import RoleSwitcherBar from '../../src/components/common/RoleSwitcherBar';
 import {
   Colors,
   Spacing,
@@ -114,6 +115,8 @@ export default function FinancesScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <RoleSwitcherBar />
+
       {/* Header */}
       <View style={styles.header}>
         <View>

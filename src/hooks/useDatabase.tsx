@@ -26,6 +26,7 @@ interface DatabaseContextType {
   loadStudents: (activeOnly?: boolean) => Promise<Student[]>;
   getStudents: (activeOnly?: boolean) => Promise<Student[]>;
   getStudent: (id: string) => Promise<Student | null>;
+  getStudentByAccessCode: (code: string) => Promise<Student | null>;
   getStudentWithDetails: (id: string) => Promise<StudentWithDetails | null>;
   createStudent: (data: StudentFormData) => Promise<Student>;
   updateStudent: (id: string, data: Partial<StudentFormData>) => Promise<Student | null>;
@@ -51,6 +52,7 @@ interface DatabaseContextType {
   getClass: (id: string) => Promise<ClassSession | null>;
   getClassesByStudent: (studentId: string) => Promise<ClassSession[]>;
   createClass: (data: ClassSessionFormData) => Promise<ClassSession>;
+  createClassesBatch: (dataList: ClassSessionFormData[]) => Promise<ClassSession[]>;
   updateClass: (id: string, data: Partial<ClassSessionFormData>) => Promise<ClassSession | null>;
   deleteClass: (id: string) => Promise<void>;
   getUpcomingClasses: (limit?: number) => Promise<ClassSession[]>;
@@ -145,6 +147,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       loadStudents,
       getStudents: loadStudents,
       getStudent: async (id: string) => db.getStudentById(id),
+      getStudentByAccessCode: async (code: string) => db.getStudentByAccessCode(code),
       getStudentWithDetails: async (id: string) => db.getStudentWithDetails(id),
       createStudent: async (data: StudentFormData) => db.createStudent(data),
       updateStudent: async (id: string, data: Partial<StudentFormData>) => db.updateStudent(id, data),
@@ -170,6 +173,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       getClass: async (id: string) => db.getClassSessionById(id),
       getClassesByStudent: async (studentId: string) => db.getAllClassSessions({ studentId }),
       createClass: async (data: ClassSessionFormData) => db.createClassSession(data),
+      createClassesBatch: async (dataList: ClassSessionFormData[]) => db.createClassesBatch(dataList),
       updateClass: async (id: string, data: Partial<ClassSessionFormData>) => db.updateClassSession(id, data),
       deleteClass: async (id: string) => db.deleteClassSession(id),
       getUpcomingClasses: async (limit: number = 5) => db.getUpcomingClasses(limit),

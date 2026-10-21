@@ -25,6 +25,12 @@ const generateId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 };
 
+export const generateAccessCode = (name: string): string => {
+  const prefix = (name.replace(/[^a-zA-Z]/g, '').substring(0, 3) || 'ALU').toUpperCase();
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}-${num}`;
+};
+
 // Default initial seed data for web preview
 const INITIAL_SUBJECTS: Subject[] = [
   {
@@ -79,6 +85,7 @@ const INITIAL_STUDENTS: Student[] = [
     firstName: 'Alejandro',
     lastName: 'Martínez Ruiz',
     course: '2º Bachillerato',
+    accessCode: 'ALE-4819',
     email: 'alejandro.martinez@gmail.com',
     phone: '+34 612 345 678',
     parentName: 'Carmen Ruiz (Madre)',
@@ -96,6 +103,7 @@ const INITIAL_STUDENTS: Student[] = [
     firstName: 'Lucía',
     lastName: 'Gómez Fernández',
     course: '3º ESO',
+    accessCode: 'LUC-7320',
     email: 'lucia.gomez@gmail.com',
     phone: '+34 623 456 789',
     parentName: 'Antonio Gómez (Padre)',
@@ -113,6 +121,7 @@ const INITIAL_STUDENTS: Student[] = [
     firstName: 'Marcos',
     lastName: 'Navarro Sanz',
     course: '2º Bachillerato',
+    accessCode: 'MAR-9154',
     email: 'marcos.navarro@outlook.es',
     phone: '+34 634 567 890',
     parentName: 'Laura Sanz',
@@ -292,11 +301,18 @@ export const webGetStudentById = async (id: string): Promise<Student | null> => 
   return list.find((s) => s.id === id) || null;
 };
 
+export const webGetStudentByAccessCode = async (code: string): Promise<Student | null> => {
+  const list = await webGetAllStudents();
+  const clean = code.trim().toUpperCase();
+  return list.find((s) => s.accessCode?.toUpperCase() === clean) || null;
+};
+
 export const webCreateStudent = async (data: StudentFormData): Promise<Student> => {
   const list = await webGetAllStudents();
   const created: Student = {
     ...data,
     id: generateId(),
+    accessCode: generateAccessCode(data.firstName),
     avatarColor: '#4F46E5',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -397,6 +413,27 @@ export const webCreateClass = async (data: ClassSessionFormData): Promise<ClassS
   list.unshift(created);
   storage.set('tutorapp_classes', list);
   return created;
+};
+
+export const webCreateClassesBatch = async (
+  classesData: ClassSessionFormData[]
+): Promise<ClassSession[]> => {
+  const list = await webGetAllClasses();
+  const now = new Date().toISOString();
+  const createdList: ClassSession[] = classesData.map((data) => {
+    const duration = data.duration || 60;
+    const totalAmount = (duration / 60) * (data.rate || 0);
+    return {
+      ...data,
+      id: generateId(),
+      totalAmount,
+      createdAt: now,
+      updatedAt: now,
+    };
+  });
+  list.unshift(...createdList);
+  storage.set('tutorapp_classes', list);
+  return createdList;
 };
 
 export const webUpdateClass = async (

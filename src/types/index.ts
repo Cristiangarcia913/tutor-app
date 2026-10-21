@@ -11,6 +11,7 @@ export interface Student {
   firstName: string;
   lastName: string;
   course?: string; // Curso escolar del alumno (e.g. 2º Bachillerato, 3º ESO)
+  accessCode?: string; // Código de acceso único para estudiante y padres (ej: ALE-7821)
   email?: string;
   phone: string;
   parentName?: string;
@@ -22,6 +23,16 @@ export interface Student {
   avatarColor: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// -----------------------------------------------------------------------------
+// App Roles (Profesor, Estudiante, Padre)
+// -----------------------------------------------------------------------------
+export type AppRole = 'profesor' | 'estudiante' | 'padre';
+
+export interface UserSession {
+  role: AppRole;
+  studentId?: string; // Vinculado al estudiante cuando entra como alumno o padre
 }
 
 // -----------------------------------------------------------------------------
@@ -56,6 +67,7 @@ export interface ClassSession {
   location: 'presencial' | 'online' | 'domicilio';
   notes: string;
   homework?: string;
+  recurringGroupId?: string; // ID del grupo de clases repetidas
   createdAt: string;
   updatedAt: string;
 }

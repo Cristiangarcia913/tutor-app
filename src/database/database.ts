@@ -91,6 +91,18 @@ export const initializeDatabase = async (): Promise<void> => {
     // Column already exists
   }
 
+  try {
+    await database.execAsync("ALTER TABLE students ADD COLUMN accessCode TEXT DEFAULT '';");
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await database.execAsync("ALTER TABLE class_sessions ADD COLUMN recurringGroupId TEXT DEFAULT '';");
+  } catch {
+    // Column already exists
+  }
+
   // Create Subjects table
   await database.execAsync(`
     CREATE TABLE IF NOT EXISTS subjects (
@@ -268,6 +280,16 @@ export const getStudentById = async (id: string): Promise<Student | null> => {
   return row ? mapRowToStudent(row) : null;
 };
 
+export const getStudentByAccessCode = async (code: string): Promise<Student | null> => {
+  const database = await getDb();
+  const clean = code.trim().toUpperCase();
+  const row = await database.getFirstAsync<any>(
+    'SELECT * FROM students WHERE UPPER(accessCode) = ?',
+    clean
+  );
+  return row ? mapRowToStudent(row) : null;
+};
+
 /**
  * Update a student
  */
@@ -373,6 +395,7 @@ const mapRowToStudent = (row: any): Student => ({
   firstName: row.firstName,
   lastName: row.lastName,
   course: row.course || undefined,
+  accessCode: row.accessCode || undefined,
   email: row.email || '',
   phone: row.phone || '',
   parentName: row.parentName || undefined,
@@ -577,6 +600,15 @@ export const createClassSession = async (data: ClassSessionFormData): Promise<Cl
   );
 
   return getClassSessionById(id) as Promise<ClassSession>;
+};
+
+export const createClassesBatch = async (dataList: ClassSessionFormData[]): Promise<ClassSession[]> => {
+  const results: ClassSession[] = [];
+  for (const item of dataList) {
+    const created = await createClassSession(item);
+    results.push(created);
+  }
+  return results;
 };
 
 /**

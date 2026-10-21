@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Switch,
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -28,6 +29,7 @@ import {
   BorderRadius,
   formatCurrency,
 } from '../../src/constants/theme';
+import { generateRecurringClassDates } from '../../src/utils/academicCalendar';
 import type { ClassSessionFormData, Student, Subject } from '../../src/types';
 
 const DURATION_PRESETS = [
@@ -69,6 +71,11 @@ export default function NewClassScreen() {
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [rate, setRate] = useState('20');
   const [notes, setNotes] = useState('');
+
+  // Repetición y calendario académico
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
+  const [repeatPeriod, setRepeatPeriod] = useState<'1month' | '3months' | 'course_end'>('1month');
+  const [skipHolidays, setSkipHolidays] = useState(true);
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -126,6 +133,16 @@ export default function NewClassScreen() {
     return calculateEndTime(startTime, durationMinutes);
   }, [startTime, durationMinutes]);
 
+  const recurrenceSchedule = useMemo(() => {
+    if (!repeatWeekly) return null;
+    return generateRecurringClassDates({
+      startDate: date,
+      frequency: 'weekly',
+      period: repeatPeriod,
+      skipHolidays,
+    });
+  }, [repeatWeekly, date, repeatPeriod, skipHolidays]);
+
   // Compute total amount
   const totalAmount = useMemo(() => {
     const hourlyRate = parseFloat(rate.replace(',', '.')) || 0;
@@ -147,21 +164,50 @@ export default function NewClassScreen() {
     setSaving(true);
     try {
       const numericRate = parseFloat(rate.replace(',', '.')) || 0;
-      const data: ClassSessionFormData = {
-        studentId,
-        subjectId,
-        date,
-        startTime,
-        endTime,
-        duration: durationMinutes,
-        rate: numericRate,
-        status: 'scheduled',
-        location: 'presencial',
-        notes: notes.trim(),
-        homework: '',
-      };
 
-      await db.createClass(data);
+      if (repeatWeekly && recurrenceSchedule && recurrenceSchedule.validDates.length > 0) {
+        const groupId = 'rec_' + Date.now();
+        const batch: ClassSessionFormData[] = recurrenceSchedule.validDates.map((classDate) => ({
+          studentId,
+          subjectId,
+          date: classDate,
+          startTime,
+          endTime,
+          duration: durationMinutes,
+          rate: numericRate,
+          status: 'scheduled',
+          location: 'presencial',
+          notes: notes.trim(),
+          homework: '',
+          recurringGroupId: groupId,
+        }));
+
+        await db.createClassesBatch(batch);
+        Alert.alert(
+          'Clases Creadas',
+          `Se han programado ${recurrenceSchedule.validDates.length} clases recurrentes.` +
+            (recurrenceSchedule.skippedDates.length > 0
+              ? `\n\nSe han saltado ${recurrenceSchedule.skippedDates.length} festivos escolares.`
+              : '')
+        );
+      } else {
+        const data: ClassSessionFormData = {
+          studentId,
+          subjectId,
+          date,
+          startTime,
+          endTime,
+          duration: durationMinutes,
+          rate: numericRate,
+          status: 'scheduled',
+          location: 'presencial',
+          notes: notes.trim(),
+          homework: '',
+        };
+
+        await db.createClass(data);
+      }
+
       if (router.canGoBack()) {
         router.back();
       } else {
@@ -327,6 +373,96 @@ export default function NewClassScreen() {
           </View>
         </View>
 
+        {/* Repetición y Calendario Académico */}
+        <View style={styles.recurrenceCard}>
+          <View style={styles.recurrenceToggleRow}>
+            <View style={styles.recurrenceInfoCol}>
+              <View style={styles.recurrenceBadgeRow}>
+                <Ionicons name="repeat-outline" size={18} color={Colors.primary} />
+                <Text style={styles.recurrenceTitle}>Repetir clase automáticamente</Text>
+              </View>
+              <Text style={styles.recurrenceSub}>
+                Programa semanalmente respetando festivos escolares
+              </Text>
+            </View>
+            <Switch
+              value={repeatWeekly}
+              onValueChange={setRepeatWeekly}
+              trackColor={{ false: Colors.border, true: Colors.primaryLight }}
+              thumbColor={repeatWeekly ? Colors.primary : Colors.surface}
+            />
+          </View>
+
+          {repeatWeekly && (
+            <View style={styles.recurrenceOptionsBox}>
+              <Text style={styles.recurrenceOptionLabel}>¿Durante cuánto tiempo?</Text>
+              <View style={styles.periodRow}>
+                {[
+                  { key: '1month', label: '1 Mes' },
+                  { key: '3months', label: 'Trimestre' },
+                  { key: 'course_end', label: 'Fin de Curso (Jun)' },
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={[
+                      styles.periodChip,
+                      repeatPeriod === item.key && styles.periodChipActive,
+                    ]}
+                    onPress={() => setRepeatPeriod(item.key as any)}
+                  >
+                    <Text
+                      style={[
+                        styles.periodChipText,
+                        repeatPeriod === item.key && styles.periodChipTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Toggle omitir festivos escolares */}
+              <View style={styles.skipHolidaysRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.skipHolidaysTitle}>Respetar calendario escolar</Text>
+                  <Text style={styles.skipHolidaysSub}>
+                    Omitir festivos y vacaciones escolares de España
+                  </Text>
+                </View>
+                <Switch
+                  value={skipHolidays}
+                  onValueChange={setSkipHolidays}
+                  trackColor={{ false: Colors.border, true: '#BBF7D0' }}
+                  thumbColor={skipHolidays ? Colors.success : Colors.surface}
+                />
+              </View>
+
+              {/* Vista previa de fechas generadas */}
+              {recurrenceSchedule && (
+                <View style={styles.schedulePreviewBox}>
+                  <View style={styles.schedulePreviewRow}>
+                    <Ionicons name="calendar-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.schedulePreviewText}>
+                      Se programarán <Text style={{ fontWeight: '800' }}>{recurrenceSchedule.validDates.length} clases</Text>
+                    </Text>
+                  </View>
+
+                  {recurrenceSchedule.skippedDates.length > 0 && (
+                    <View style={styles.scheduleSkippedRow}>
+                      <Ionicons name="alert-circle-outline" size={16} color={Colors.warning} />
+                      <Text style={styles.scheduleSkippedText}>
+                        Se saltarán <Text style={{ fontWeight: '800' }}>{recurrenceSchedule.skippedDates.length} festivos</Text>: {recurrenceSchedule.skippedDates.map((s) => s.reason).slice(0, 2).join(', ')}
+                        {recurrenceSchedule.skippedDates.length > 2 ? ' y más...' : ''}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
         {/* Notas breves (opcional) */}
         <Input
           label="Notas (opcional)"
@@ -419,6 +555,128 @@ const styles = StyleSheet.create({
   durationChipTextActive: {
     color: Colors.primaryDark,
     fontWeight: '700',
+  },
+  recurrenceCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  recurrenceToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  recurrenceInfoCol: {
+    flex: 1,
+    paddingRight: Spacing.sm,
+  },
+  recurrenceBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recurrenceTitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  recurrenceSub: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  recurrenceOptionsBox: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  recurrenceOptionLabel: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  periodRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: Spacing.md,
+  },
+  periodChip: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  periodChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryBg,
+  },
+  periodChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  periodChipTextActive: {
+    color: Colors.primaryDark,
+    fontWeight: '700',
+  },
+  skipHolidaysRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4',
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    marginBottom: Spacing.sm,
+  },
+  skipHolidaysTitle: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  skipHolidaysSub: {
+    fontSize: 10,
+    color: '#15803D',
+    marginTop: 1,
+  },
+  schedulePreviewBox: {
+    backgroundColor: Colors.surfaceVariant,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  schedulePreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  schedulePreviewText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textPrimary,
+  },
+  scheduleSkippedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  scheduleSkippedText: {
+    fontSize: FontSizes.xs,
+    color: Colors.warningDark || '#B45309',
+    lineHeight: 16,
+    flex: 1,
   },
   row: {
     flexDirection: 'row',

@@ -22,6 +22,10 @@ import {
 import ClassCard from '../../src/components/classes/ClassCard';
 import PaymentCard from '../../src/components/finances/PaymentCard';
 import IncomeChart from '../../src/components/finances/IncomeChart';
+import RoleSwitcherBar from '../../src/components/common/RoleSwitcherBar';
+import StudentPortalView from '../../src/components/roles/StudentPortalView';
+import ParentPortalView from '../../src/components/roles/ParentPortalView';
+import { useAuthRole } from '../../src/hooks/useAuthRole';
 import {
   Colors,
   Spacing,
@@ -42,6 +46,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const db = useDatabase();
+  const { isStudent, isParent } = useAuthRole();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -123,37 +128,45 @@ export default function DashboardScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>{getGreeting()},</Text>
-          <Text style={styles.teacherName}>{teacherName}</Text>
-        </View>
+      <RoleSwitcherBar />
 
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.actionIconButton}
-            onPress={() => router.push('/reports')}
+      {isStudent ? (
+        <StudentPortalView />
+      ) : isParent ? (
+        <ParentPortalView />
+      ) : (
+        <>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.greeting}>{getGreeting()},</Text>
+              <Text style={styles.teacherName}>{teacherName}</Text>
+            </View>
+
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.actionIconButton}
+                onPress={() => router.push('/reports')}
+              >
+                <Ionicons name="bar-chart-outline" size={22} color={Colors.primary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionIconButton}
+                onPress={() => router.push('/settings')}
+              >
+                <Ionicons name="settings-outline" size={22} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
           >
-            <Ionicons name="bar-chart-outline" size={22} color={Colors.primary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionIconButton}
-            onPress={() => router.push('/settings')}
-          >
-            <Ionicons name="settings-outline" size={22} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
         {/* KPI Grid */}
         <View style={styles.grid}>
           <View style={styles.gridCol}>
@@ -298,6 +311,8 @@ export default function DashboardScreen() {
         {/* Income Chart */}
         <IncomeChart data={monthlyIncome} title="Evolución de Ingresos Mensuales" />
       </ScrollView>
+        </>
+      )}
     </View>
   );
 }

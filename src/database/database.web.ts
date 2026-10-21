@@ -46,6 +46,10 @@ export const getStudentById = async (id: string): Promise<Student | null> => {
   return web.webGetStudentById(id);
 };
 
+export const getStudentByAccessCode = async (code: string): Promise<Student | null> => {
+  return web.webGetStudentByAccessCode(code);
+};
+
 export const updateStudent = async (
   id: string,
   data: Partial<StudentFormData>
@@ -137,6 +141,10 @@ export const removeSubjectFromStudent = async (
 // Classes
 export const createClassSession = async (data: ClassSessionFormData): Promise<ClassSession> => {
   return web.webCreateClass(data);
+};
+
+export const createClassesBatch = async (dataList: ClassSessionFormData[]): Promise<ClassSession[]> => {
+  return web.webCreateClassesBatch(dataList);
 };
 
 export const getAllClassSessions = async (filter?: ClassFilter): Promise<ClassSession[]> => {

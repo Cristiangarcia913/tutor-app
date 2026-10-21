@@ -18,6 +18,7 @@ import {
   FilterChip,
 } from '../../src/components/common';
 import StudentCard from '../../src/components/students/StudentCard';
+import RoleSwitcherBar from '../../src/components/common/RoleSwitcherBar';
 import {
   Colors,
   Spacing,
@@ -104,6 +105,8 @@ export default function StudentsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <RoleSwitcherBar />
+
       {/* Header */}
       <View style={styles.header}>
         <View>

@@ -245,6 +245,39 @@ export default function StudentDetailScreen() {
           </View>
         </Card>
 
+        {/* Access Code Card for Student & Parent Portal */}
+        <Card style={styles.accessCodeCard}>
+          <View style={styles.accessCodeHeader}>
+            <View style={styles.accessCodeIconBox}>
+              <Ionicons name="key-outline" size={18} color={Colors.primary} />
+            </View>
+            <View style={styles.accessCodeInfo}>
+              <Text style={styles.accessCodeTitle}>Código de Acceso Alumno y Familias</Text>
+              <Text style={styles.accessCodeSub}>
+                Compártelo para que puedan consultar sus clases, tareas y pagos
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.accessCodeRow}>
+            <View style={styles.accessCodeBadge}>
+              <Text style={styles.accessCodeValue}>{student.accessCode || 'ALE-4819'}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.copyCodeButton}
+              onPress={() => {
+                Alert.alert(
+                  'Código de Acceso',
+                  `Código para ${student.firstName}: ${student.accessCode || 'ALE-4819'}\n\nLos padres o el alumno pueden introducir este código en la app para acceder a su portal.`
+                );
+              }}
+            >
+              <Ionicons name="share-social-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.copyCodeButtonText}>Compartir</Text>
+            </TouchableOpacity>
+          </View>
+        </Card>
+
         {/* Financial Balance Summary */}
         <View style={styles.statsRow}>
           <View style={styles.statCol}>
@@ -434,6 +467,75 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
+  },
+  accessCodeCard: {
+    padding: Spacing.md,
+    backgroundColor: '#EEF2FF',
+    borderColor: '#C7D2FE',
+    borderWidth: 1,
+  },
+  accessCodeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  accessCodeIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#E0E7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accessCodeInfo: {
+    flex: 1,
+  },
+  accessCodeTitle: {
+    fontSize: FontSizes.xs,
+    fontWeight: '800',
+    color: '#3730A3',
+  },
+  accessCodeSub: {
+    fontSize: 10,
+    color: '#4F46E5',
+    marginTop: 1,
+  },
+  accessCodeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  accessCodeBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+  },
+  accessCodeValue: {
+    fontSize: FontSizes.md,
+    fontWeight: '900',
+    color: '#3730A3',
+    letterSpacing: 1,
+  },
+  copyCodeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+  },
+  copyCodeButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: FontSizes.xs,
   },
   detailsGrid: {
     marginTop: Spacing.md,

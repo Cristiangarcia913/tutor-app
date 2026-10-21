@@ -27,6 +27,8 @@ import {
   BorderRadius,
   Shadows,
 } from '../../src/constants/theme';
+import { useAuthRole } from '../../src/hooks/useAuthRole';
+import RoleSwitcherBar from '../../src/components/common/RoleSwitcherBar';
 import type { ClassSession, Student, Subject } from '../../src/types';
 
 type StatusFilter = 'all' | 'scheduled' | 'completed' | 'cancelled';
@@ -36,6 +38,7 @@ export default function ClassesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const db = useDatabase();
+  const { isTeacher, activeStudent } = useAuthRole();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,7 +53,9 @@ export default function ClassesScreen() {
   const loadData = useCallback(async () => {
     try {
       const [classesData, studentsData, subjectsData] = await Promise.all([
-        db.loadClasses(),
+        !isTeacher && activeStudent?.id
+          ? db.getClassesByStudent(activeStudent.id)
+          : db.loadClasses(),
         db.loadStudents(),
         db.loadSubjects(),
       ]);
@@ -73,7 +78,7 @@ export default function ClassesScreen() {
     } finally {
       setLoading(false);
     }
-  }, [db]);
+  }, [db, isTeacher, activeStudent?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -143,6 +148,8 @@ export default function ClassesScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <RoleSwitcherBar />
+
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -245,11 +252,13 @@ export default function ClassesScreen() {
         />
       )}
 
-      {/* Floating Action Button */}
-      <FloatingActionButton
-        onPress={() => router.push('/class/new')}
-        icon="add"
-      />
+      {/* Floating Action Button (solo profesor) */}
+      {isTeacher && (
+        <FloatingActionButton
+          onPress={() => router.push('/class/new')}
+          icon="add"
+        />
+      )}
     </View>
   );
 }

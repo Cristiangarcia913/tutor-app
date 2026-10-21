@@ -2,8 +2,11 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, StyleSheet } from 'react-native';
 import { Colors, FontSizes, Spacing } from '../../src/constants/theme';
+import { useAuthRole } from '../../src/hooks/useAuthRole';
 
 export default function TabLayout() {
+  const { isTeacher } = useAuthRole();
+
   return (
     <Tabs
       screenOptions={{
@@ -28,6 +31,7 @@ export default function TabLayout() {
         name="students"
         options={{
           title: 'Alumnos',
+          href: isTeacher ? '/(tabs)/students' : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people" size={size} color={color} />
           ),
@@ -46,6 +50,7 @@ export default function TabLayout() {
         name="finances"
         options={{
           title: 'Finanzas',
+          href: isTeacher ? '/(tabs)/finances' : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="wallet" size={size} color={color} />
           ),
