@@ -3,7 +3,9 @@
 // Complete SQLite database layer using expo-sqlite async API
 // =============================================================================
 
+import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
+import * as web from './webStorage';
 import type {
   Student,
   StudentFormData,
@@ -54,6 +56,9 @@ const getDb = async (): Promise<SQLite.SQLiteDatabase> => {
  * Initialize the database: create all tables if they don't exist
  */
 export const initializeDatabase = async (): Promise<void> => {
+  if (Platform.OS === 'web') {
+    return web.webInit();
+  }
   const database = await getDb();
 
   // Enable WAL mode for better performance
