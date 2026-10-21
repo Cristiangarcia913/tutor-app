@@ -43,26 +43,35 @@ export default function StudentCard({
             )}
           </View>
 
+          {student.course ? (
+            <View style={styles.courseBadge}>
+              <Ionicons name="school-outline" size={12} color={Colors.primary} />
+              <Text style={styles.courseText} numberOfLines={1}>{student.course}</Text>
+            </View>
+          ) : null}
+
           {student.phone ? (
             <View style={styles.metaRow}>
               <Ionicons name="call-outline" size={13} color={Colors.textSecondary} />
               <Text style={styles.metaText}>{student.phone}</Text>
             </View>
-          ) : student.email ? (
+          ) : null}
+
+          {student.address ? (
             <View style={styles.metaRow}>
-              <Ionicons name="mail-outline" size={13} color={Colors.textSecondary} />
-              <Text style={styles.metaText} numberOfLines={1}>{student.email}</Text>
+              <Ionicons name="location-outline" size={13} color={Colors.textTertiary} />
+              <Text style={styles.metaTextMuted} numberOfLines={1}>{student.address}</Text>
             </View>
           ) : null}
 
-          {student.parentName && (
+          {student.parentName ? (
             <View style={styles.metaRow}>
               <Ionicons name="people-outline" size={13} color={Colors.textTertiary} />
               <Text style={styles.metaTextMuted} numberOfLines={1}>
-                Tutor: {student.parentName}
+                Padres: {student.parentName}
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         <View style={styles.rightSection}>
@@ -112,6 +121,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
     flexShrink: 1,
+  },
+  courseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primaryBg,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.xs,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  courseText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: Colors.primaryDark,
   },
   metaRow: {
     flexDirection: 'row',

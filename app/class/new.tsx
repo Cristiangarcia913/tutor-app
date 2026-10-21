@@ -30,6 +30,25 @@ import {
 } from '../../src/constants/theme';
 import type { ClassSessionFormData, Student, Subject } from '../../src/types';
 
+const DURATION_PRESETS = [
+  { label: '45 min', minutes: 45 },
+  { label: '1 hora', minutes: 60 },
+  { label: '1h 30m', minutes: 90 },
+  { label: '2 horas', minutes: 120 },
+];
+
+function calculateEndTime(start: string, durationMinutes: number): string {
+  try {
+    const [h, m] = start.split(':').map(Number);
+    const total = h * 60 + m + durationMinutes;
+    const endH = Math.floor(total / 60) % 24;
+    const endM = total % 60;
+    return `${endH < 10 ? '0' + endH : endH}:${endM < 10 ? '0' + endM : endM}`;
+  } catch {
+    return '18:00';
+  }
+}
+
 export default function NewClassScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -46,13 +65,10 @@ export default function NewClassScreen() {
   const [studentId, setStudentId] = useState(params.studentId || '');
   const [subjectId, setSubjectId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [startTime, setStartTime] = useState('16:00');
-  const [endTime, setEndTime] = useState('17:00');
+  const [startTime, setStartTime] = useState('17:00');
+  const [durationMinutes, setDurationMinutes] = useState(60);
   const [rate, setRate] = useState('20');
-  const [location, setLocation] = useState<'presencial' | 'online' | 'domicilio'>('presencial');
-  const [status, setStatus] = useState<'scheduled' | 'completed'>('scheduled');
   const [notes, setNotes] = useState('');
-  const [homework, setHomework] = useState('');
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -106,33 +122,22 @@ export default function NewClassScreen() {
     }
   };
 
-  // Compute duration in minutes
-  const duration = useMemo(() => {
-    try {
-      const [startH, startM] = startTime.split(':').map(Number);
-      const [endH, endM] = endTime.split(':').map(Number);
-      const startMin = startH * 60 + startM;
-      const endMin = endH * 60 + endM;
-      return Math.max(endMin - startMin, 0);
-    } catch {
-      return 60;
-    }
-  }, [startTime, endTime]);
+  const endTime = useMemo(() => {
+    return calculateEndTime(startTime, durationMinutes);
+  }, [startTime, durationMinutes]);
 
   // Compute total amount
   const totalAmount = useMemo(() => {
     const hourlyRate = parseFloat(rate.replace(',', '.')) || 0;
-    return (duration / 60) * hourlyRate;
-  }, [duration, rate]);
+    return (durationMinutes / 60) * hourlyRate;
+  }, [durationMinutes, rate]);
 
   const handleSubmit = async () => {
     const errs: Record<string, string> = {};
     if (!studentId) errs.studentId = 'Selecciona un alumno';
     if (!subjectId) errs.subjectId = 'Selecciona una asignatura';
     if (!date) errs.date = 'Indica la fecha';
-    if (!startTime) errs.startTime = 'Indica la hora de inicio';
-    if (!endTime) errs.endTime = 'Indica la hora de fin';
-    if (duration <= 0) errs.time = 'La hora de fin debe ser posterior a la de inicio';
+    if (!startTime) errs.startTime = 'Indica la hora';
 
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -148,12 +153,12 @@ export default function NewClassScreen() {
         date,
         startTime,
         endTime,
-        duration,
+        duration: durationMinutes,
         rate: numericRate,
-        status,
-        location,
+        status: 'scheduled',
+        location: 'presencial',
         notes: notes.trim(),
-        homework: homework.trim(),
+        homework: '',
       };
 
       await db.createClass(data);
@@ -250,7 +255,7 @@ export default function NewClassScreen() {
           error={errors.subjectId}
         />
 
-        {/* Fecha y Horarios */}
+        {/* Fecha y Hora */}
         <DatePicker
           label="Fecha *"
           value={date}
@@ -261,34 +266,47 @@ export default function NewClassScreen() {
           error={errors.date}
         />
 
-        <View style={styles.row}>
-          <View style={styles.flexHalf}>
-            <TimePicker
-              label="Hora Inicio *"
-              value={startTime}
-              onChange={(val) => {
-                setStartTime(val);
-                setErrors((prev) => ({ ...prev, startTime: '' }));
-              }}
-              error={errors.startTime}
-            />
-          </View>
-          <View style={styles.flexHalf}>
-            <TimePicker
-              label="Hora Fin *"
-              value={endTime}
-              onChange={(val) => {
-                setEndTime(val);
-                setErrors((prev) => ({ ...prev, endTime: '' }));
-              }}
-              error={errors.endTime}
-            />
+        <TimePicker
+          label="Hora de Inicio *"
+          value={startTime}
+          onChange={(val) => {
+            setStartTime(val);
+            setErrors((prev) => ({ ...prev, startTime: '' }));
+          }}
+          error={errors.startTime}
+        />
+
+        {/* Duración rápida en 1 toque */}
+        <View style={styles.fieldBlock}>
+          <Text style={styles.fieldLabel}>Duración de la clase</Text>
+          <View style={styles.durationRow}>
+            {DURATION_PRESETS.map((p) => {
+              const isSelected = durationMinutes === p.minutes;
+              return (
+                <TouchableOpacity
+                  key={p.minutes}
+                  style={[
+                    styles.durationChip,
+                    isSelected && styles.durationChipActive,
+                  ]}
+                  onPress={() => setDurationMinutes(p.minutes)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.durationChipText,
+                      isSelected && styles.durationChipTextActive,
+                    ]}
+                  >
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {errors.time && <Text style={styles.errorText}>{errors.time}</Text>}
-
-        {/* Tarifa y Duración Calculada */}
+        {/* Tarifa e Importe Calculado */}
         <View style={styles.row}>
           <View style={styles.flexHalf}>
             <Input
@@ -301,47 +319,25 @@ export default function NewClassScreen() {
           </View>
           <View style={styles.flexHalf}>
             <View style={styles.totalPreview}>
-              <Text style={styles.totalPreviewLabel}>Duración: {duration} min</Text>
+              <Text style={styles.totalPreviewLabel}>
+                {startTime} - {endTime} ({durationMinutes} min)
+              </Text>
               <Text style={styles.totalPreviewAmount}>{formatCurrency(totalAmount)}</Text>
             </View>
           </View>
         </View>
 
-        {/* Modalidad y Estado */}
-        <Select
-          label="Modalidad"
-          value={location}
-          options={locationOptions}
-          onSelect={(val) => setLocation(val as any)}
-        />
-
-        <Select
-          label="Estado inicial"
-          value={status}
-          options={statusOptions}
-          onSelect={(val) => setStatus(val as any)}
-        />
-
-        {/* Notas y Deberes */}
+        {/* Notas breves (opcional) */}
         <Input
-          label="Notas de la clase"
+          label="Notas (opcional)"
           value={notes}
           onChangeText={setNotes}
-          placeholder="Temas a tratar, preparación, observaciones..."
-          multiline
-        />
-
-        <Input
-          label="Deberes o tareas asignadas"
-          value={homework}
-          onChangeText={setHomework}
-          placeholder="Ejercicios para la próxima clase..."
-          multiline
+          placeholder="Ej: Tema 4 de matemáticas..."
         />
 
         <View style={styles.submitContainer}>
           <Button
-            title="Guardar Clase"
+            title="Crear Clase"
             onPress={handleSubmit}
             loading={saving}
             size="lg"
@@ -387,6 +383,42 @@ const styles = StyleSheet.create({
   },
   formContent: {
     padding: Spacing.lg,
+  },
+  fieldBlock: {
+    marginBottom: Spacing.lg,
+  },
+  fieldLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  durationRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  durationChip: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  durationChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryBg,
+  },
+  durationChipText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  durationChipTextActive: {
+    color: Colors.primaryDark,
+    fontWeight: '700',
   },
   row: {
     flexDirection: 'row',

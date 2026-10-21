@@ -33,7 +33,7 @@ import {
 import type { Payment, Student, StudentBalance } from '../../src/types';
 
 type ActiveTab = 'payments' | 'summary';
-type MethodFilter = 'all' | 'bizum' | 'efectivo' | 'transferencia' | 'paypal';
+type MethodFilter = 'all' | 'bizum' | 'efectivo';
 
 export default function FinancesScreen() {
   const insets = useSafeAreaInsets();
@@ -110,8 +110,6 @@ export default function FinancesScreen() {
     { key: 'all', label: 'Todos' },
     { key: 'bizum', label: 'Bizum' },
     { key: 'efectivo', label: 'Efectivo' },
-    { key: 'transferencia', label: 'Transferencia' },
-    { key: 'paypal', label: 'PayPal' },
   ];
 
   return (

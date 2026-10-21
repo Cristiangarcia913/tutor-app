@@ -70,6 +70,7 @@ export const initializeDatabase = async (): Promise<void> => {
       id TEXT PRIMARY KEY NOT NULL,
       firstName TEXT NOT NULL,
       lastName TEXT NOT NULL,
+      course TEXT DEFAULT '',
       email TEXT DEFAULT '',
       phone TEXT DEFAULT '',
       parentName TEXT,
@@ -83,6 +84,12 @@ export const initializeDatabase = async (): Promise<void> => {
       updatedAt TEXT NOT NULL
     );
   `);
+
+  try {
+    await database.execAsync("ALTER TABLE students ADD COLUMN course TEXT DEFAULT '';");
+  } catch {
+    // Column already exists
+  }
 
   // Create Subjects table
   await database.execAsync(`
@@ -212,11 +219,12 @@ export const createStudent = async (data: StudentFormData): Promise<Student> => 
   const avatarColor = Colors.avatarColors[Math.floor(Math.random() * Colors.avatarColors.length)];
 
   await database.runAsync(
-    `INSERT INTO students (id, firstName, lastName, email, phone, parentName, parentPhone, address, birthDate, notes, active, avatarColor, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO students (id, firstName, lastName, course, email, phone, parentName, parentPhone, address, birthDate, notes, active, avatarColor, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     data.firstName,
     data.lastName,
+    data.course || '',
     data.email || '',
     data.phone || '',
     data.parentName || null,
@@ -272,6 +280,7 @@ export const updateStudent = async (id: string, data: Partial<StudentFormData>):
 
   if (data.firstName !== undefined) { fields.push('firstName = ?'); values.push(data.firstName); }
   if (data.lastName !== undefined) { fields.push('lastName = ?'); values.push(data.lastName); }
+  if (data.course !== undefined) { fields.push('course = ?'); values.push(data.course); }
   if (data.email !== undefined) { fields.push('email = ?'); values.push(data.email); }
   if (data.phone !== undefined) { fields.push('phone = ?'); values.push(data.phone); }
   if (data.parentName !== undefined) { fields.push('parentName = ?'); values.push(data.parentName || null); }
@@ -363,6 +372,7 @@ const mapRowToStudent = (row: any): Student => ({
   id: row.id,
   firstName: row.firstName,
   lastName: row.lastName,
+  course: row.course || undefined,
   email: row.email || '',
   phone: row.phone || '',
   parentName: row.parentName || undefined,

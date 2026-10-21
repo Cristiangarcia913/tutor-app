@@ -46,9 +46,9 @@ export default function NewPaymentScreen() {
   const [studentId, setStudentId] = useState(params.studentId || '');
   const [amount, setAmount] = useState(params.amount || '');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [method, setMethod] = useState<'bizum' | 'efectivo' | 'transferencia' | 'paypal' | 'otro'>('bizum');
-  const [status, setStatus] = useState<'cobrado' | 'pendiente' | 'cancelado'>('cobrado');
-  const [concept, setConcept] = useState('Pago de clases particulares');
+  const [method, setMethod] = useState<'bizum' | 'efectivo'>('bizum');
+  const [status, setStatus] = useState<'cobrado' | 'pendiente'>('cobrado');
+  const [concept, setConcept] = useState('Clases particulares');
   const [notes, setNotes] = useState('');
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -261,6 +261,58 @@ export default function NewPaymentScreen() {
           error={errors.amount}
         />
 
+        {/* Método de Pago - 1 toque: Bizum o Efectivo */}
+        <View style={styles.fieldBlock}>
+          <Text style={styles.fieldLabel}>Método de Pago</Text>
+          <View style={styles.methodSelector}>
+            <TouchableOpacity
+              style={[
+                styles.methodOption,
+                method === 'bizum' && styles.methodOptionActive,
+              ]}
+              onPress={() => setMethod('bizum')}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="phone-portrait-outline"
+                size={18}
+                color={method === 'bizum' ? Colors.primary : Colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.methodOptionText,
+                  method === 'bizum' && styles.methodOptionTextActive,
+                ]}
+              >
+                Bizum
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.methodOption,
+                method === 'efectivo' && styles.methodOptionActive,
+              ]}
+              onPress={() => setMethod('efectivo')}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="cash-outline"
+                size={18}
+                color={method === 'efectivo' ? Colors.success : Colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.methodOptionText,
+                  method === 'efectivo' && styles.methodOptionTextActive,
+                ]}
+              >
+                Efectivo
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Fecha */}
         <DatePicker
           label="Fecha de Pago *"
@@ -272,37 +324,12 @@ export default function NewPaymentScreen() {
           error={errors.date}
         />
 
-        {/* Método de Pago */}
-        <Select
-          label="Método de Pago"
-          value={method}
-          options={methodOptions}
-          onSelect={(val) => setMethod(val as any)}
-        />
-
-        {/* Estado del Pago */}
-        <Select
-          label="Estado"
-          value={status}
-          options={statusOptions}
-          onSelect={(val) => setStatus(val as any)}
-        />
-
-        {/* Concepto */}
+        {/* Concepto (opcional) */}
         <Input
           label="Concepto"
           value={concept}
           onChangeText={setConcept}
-          placeholder="Ej: Mensualidad clases de matemáticas"
-        />
-
-        {/* Notas adicionales */}
-        <Input
-          label="Notas"
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Número de comprobante, observaciones..."
-          multiline
+          placeholder="Ej: Clases de matemáticas"
         />
 
         <View style={styles.submitContainer}>
@@ -353,6 +380,44 @@ const styles = StyleSheet.create({
   },
   formContent: {
     padding: Spacing.lg,
+  },
+  fieldBlock: {
+    marginBottom: Spacing.lg,
+  },
+  fieldLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  methodSelector: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  methodOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  methodOptionActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryBg,
+  },
+  methodOptionText: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  methodOptionTextActive: {
+    color: Colors.primaryDark,
+    fontWeight: '700',
   },
   balanceInfoCard: {
     backgroundColor: Colors.surfaceVariant,

@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDatabase } from '../../src/hooks/useDatabase';
-import { Input, Button, DatePicker } from '../../src/components/common';
+import { Input, Button } from '../../src/components/common';
 import { Colors, Spacing, FontSizes, BorderRadius } from '../../src/constants/theme';
 import type { StudentFormData } from '../../src/types';
 
@@ -26,12 +26,10 @@ export default function NewStudentScreen() {
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
+  const [course, setCourse] = useState('');
   const [phone, setPhone] = useState('');
-  const [parentName, setParentName] = useState('');
-  const [parentPhone, setParentPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [birthDate, setBirthDate] = useState('');
+  const [parentName, setParentName] = useState('');
   const [notes, setNotes] = useState('');
   const [active, setActive] = useState(true);
 
@@ -41,7 +39,6 @@ export default function NewStudentScreen() {
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!firstName.trim()) newErrors.firstName = 'El nombre es obligatorio';
-    if (!lastName.trim()) newErrors.lastName = 'Los apellidos son obligatorios';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -53,12 +50,11 @@ export default function NewStudentScreen() {
       const data: StudentFormData = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        email: email.trim(),
+        course: course.trim() || undefined,
         phone: phone.trim(),
-        parentName: parentName.trim(),
-        parentPhone: parentPhone.trim(),
-        address: address.trim(),
-        birthDate: birthDate || undefined,
+        address: address.trim() || undefined,
+        parentName: parentName.trim() || undefined,
+        email: '',
         notes: notes.trim(),
         active,
       };
@@ -104,7 +100,7 @@ export default function NewStudentScreen() {
         contentContainerStyle={[styles.formContent, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.sectionTitle}>Datos Personales</Text>
+        <Text style={styles.sectionTitle}>Ficha del Alumno</Text>
 
         <Input
           label="Nombre *"
@@ -118,18 +114,21 @@ export default function NewStudentScreen() {
         />
 
         <Input
-          label="Apellidos *"
+          label="Apellidos"
           value={lastName}
-          onChangeText={(v) => {
-            setLastName(v);
-            setErrors((prev) => ({ ...prev, lastName: '' }));
-          }}
+          onChangeText={setLastName}
           placeholder="Ej: Martínez Ruiz"
-          error={errors.lastName}
         />
 
         <Input
-          label="Teléfono"
+          label="Curso Escolar"
+          value={course}
+          onChangeText={setCourse}
+          placeholder="Ej: 2º Bachillerato, 3º ESO, 1º Primaria..."
+        />
+
+        <Input
+          label="Teléfono del Alumno"
           value={phone}
           onChangeText={setPhone}
           keyboardType="phone-pad"
@@ -137,54 +136,24 @@ export default function NewStudentScreen() {
         />
 
         <Input
-          label="Correo Electrónico"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          placeholder="alumno@ejemplo.com"
-        />
-
-        <DatePicker
-          label="Fecha de Nacimiento"
-          value={birthDate}
-          onChange={setBirthDate}
-        />
-
-        <Input
           label="Dirección"
           value={address}
           onChangeText={setAddress}
-          placeholder="Calle, número, piso, ciudad"
+          placeholder="Calle Mayor 14, 3ºB"
         />
 
-        <Text style={[styles.sectionTitle, { marginTop: Spacing.md }]}>
-          Contacto de Padres / Tutores
-        </Text>
-
         <Input
-          label="Nombre del Padre / Madre / Tutor"
+          label="Nombre de los Padres / Tutor"
           value={parentName}
           onChangeText={setParentName}
-          placeholder="Ej: Carmen Ruiz"
+          placeholder="Ej: Carmen Ruiz (Madre)"
         />
 
         <Input
-          label="Teléfono del Tutor"
-          value={parentPhone}
-          onChangeText={setParentPhone}
-          keyboardType="phone-pad"
-          placeholder="+34 600 000 000"
-        />
-
-        <Text style={[styles.sectionTitle, { marginTop: Spacing.md }]}>
-          Información Adicional
-        </Text>
-
-        <Input
-          label="Notas y Observaciones"
+          label="Notas adicionales (opcional)"
           value={notes}
           onChangeText={setNotes}
-          placeholder="Objetivos, dificultades, horarios preferidos..."
+          placeholder="Observaciones, temario, etc."
           multiline
         />
 

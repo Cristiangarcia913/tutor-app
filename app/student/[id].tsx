@@ -188,17 +188,19 @@ export default function StudentDetailScreen() {
                 />
               </View>
 
+              {student.course ? (
+                <View style={[styles.metaRow, { marginTop: 4 }]}>
+                  <Ionicons name="school-outline" size={14} color={Colors.primary} />
+                  <Text style={[styles.metaText, { color: Colors.primary, fontWeight: '700' }]}>
+                    {student.course}
+                  </Text>
+                </View>
+              ) : null}
+
               {student.phone ? (
                 <View style={styles.metaRow}>
                   <Ionicons name="call-outline" size={14} color={Colors.textSecondary} />
                   <Text style={styles.metaText}>{student.phone}</Text>
-                </View>
-              ) : null}
-
-              {student.email ? (
-                <View style={styles.metaRow}>
-                  <Ionicons name="mail-outline" size={14} color={Colors.textSecondary} />
-                  <Text style={styles.metaText}>{student.email}</Text>
                 </View>
               ) : null}
             </View>
@@ -206,26 +208,31 @@ export default function StudentDetailScreen() {
 
           {/* Contact Details Grid */}
           <View style={styles.detailsGrid}>
-            {student.parentName && (
+            {student.course ? (
               <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>Tutor / Contacto</Text>
-                <Text style={styles.detailValue}>
-                  {student.parentName} {student.parentPhone ? `(${student.parentPhone})` : ''}
-                </Text>
+                <Text style={styles.detailLabel}>Curso Escolar</Text>
+                <Text style={[styles.detailValue, { fontWeight: '700' }]}>{student.course}</Text>
               </View>
-            )}
+            ) : null}
 
-            {student.birthDate && (
+            {student.phone ? (
               <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>Fecha de Nacimiento</Text>
-                <Text style={styles.detailValue}>{formatDate(student.birthDate)}</Text>
+                <Text style={styles.detailLabel}>Teléfono</Text>
+                <Text style={styles.detailValue}>{student.phone}</Text>
               </View>
-            )}
+            ) : null}
 
             {student.address && (
               <View style={styles.detailItem}>
                 <Text style={styles.detailLabel}>Dirección</Text>
                 <Text style={styles.detailValue}>{student.address}</Text>
+              </View>
+            )}
+
+            {student.parentName && (
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Padres / Tutor</Text>
+                <Text style={styles.detailValue}>{student.parentName}</Text>
               </View>
             )}
 

@@ -10,7 +10,8 @@ export interface Student {
   id: string;
   firstName: string;
   lastName: string;
-  email: string;
+  course?: string; // Curso escolar del alumno (e.g. 2º Bachillerato, 3º ESO)
+  email?: string;
   phone: string;
   parentName?: string;
   parentPhone?: string;
