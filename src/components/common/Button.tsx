@@ -26,6 +26,7 @@ interface ButtonProps {
   loading?: boolean;
   disabled?: boolean;
   fullWidth?: boolean;
+  style?: ViewStyle;
 }
 
 const VARIANT_STYLES: Record<
@@ -103,6 +104,7 @@ export default function Button({
   loading = false,
   disabled = false,
   fullWidth = false,
+  style,
 }: ButtonProps) {
   const v = VARIANT_STYLES[variant];
   const s = SIZE_STYLES[size];
@@ -118,6 +120,7 @@ export default function Button({
         s.container,
         fullWidth && styles.fullWidth,
         disabled && styles.disabled,
+        style,
       ]}
     >
       {loading ? (

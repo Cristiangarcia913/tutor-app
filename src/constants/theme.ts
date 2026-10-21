@@ -562,3 +562,8 @@ export const getDayNameShort = (date: string): string => {
   const d = new Date(date);
   return days[d.getDay()];
 };
+
+export const MONTH_LABELS_SHORT = [
+  'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+];
