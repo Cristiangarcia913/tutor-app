@@ -68,6 +68,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
+    zIndex: 9999,
   },
   tabBarLabel: {
     fontSize: FontSizes.xs,
@@ -76,5 +77,6 @@ const styles = StyleSheet.create({
   },
   tabBarItem: {
     paddingVertical: 4,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {}),
   },
 });

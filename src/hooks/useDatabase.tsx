@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
 import * as db from '../database/database';
 import { seedDatabase } from '../database/seed';
 import {
@@ -92,316 +92,139 @@ const DatabaseContext = createContext<DatabaseContextType | null>(null);
 
 export function DatabaseProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [classes, setClasses] = useState<ClassSession[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-
-  const initDatabase = async () => {
-    try {
-      await db.initializeDatabase();
-      const empty = await db.isDatabaseEmpty();
-      if (empty) {
-        await seedDatabase();
-      }
-      setIsReady(true);
-      await refreshAll();
-    } catch (error) {
-      console.error('Failed to initialize database:', error);
-      setIsReady(true);
-    }
-  };
 
   useEffect(() => {
-    initDatabase();
+    let mounted = true;
+    const init = async () => {
+      try {
+        await db.initializeDatabase();
+        const empty = await db.isDatabaseEmpty();
+        if (empty) {
+          await seedDatabase();
+        }
+        if (mounted) setIsReady(true);
+      } catch (error) {
+        console.error('Database initialization error:', error);
+        if (mounted) setIsReady(true);
+      }
+    };
+    init();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // Students
-  const loadStudents = useCallback(async (activeOnly: boolean = false) => {
-    const list = await db.getAllStudents(activeOnly);
-    setStudents(list);
-    return list;
-  }, []);
+  const value: DatabaseContextType = useMemo(() => {
+    const loadStudents = async (activeOnly: boolean = false) => {
+      return db.getAllStudents(activeOnly);
+    };
 
-  const getStudent = useCallback(async (id: string) => {
-    return db.getStudentById(id);
-  }, []);
+    const loadSubjects = async (activeOnly: boolean = false) => {
+      return db.getAllSubjects(activeOnly);
+    };
 
-  const getStudentWithDetails = useCallback(async (id: string) => {
-    return db.getStudentWithDetails(id);
-  }, []);
+    const loadClasses = async (filter?: ClassFilter) => {
+      return db.getAllClassSessions(filter);
+    };
 
-  const createStudent = useCallback(async (data: StudentFormData) => {
-    const created = await db.createStudent(data);
-    await loadStudents();
-    return created;
-  }, [loadStudents]);
+    const loadPayments = async (filter?: PaymentFilter) => {
+      return db.getAllPayments(filter);
+    };
 
-  const updateStudent = useCallback(async (id: string, data: Partial<StudentFormData>) => {
-    const updated = await db.updateStudent(id, data);
-    await loadStudents();
-    return updated;
-  }, [loadStudents]);
+    const loadDashboardStats = async () => {
+      return db.getDashboardStats();
+    };
 
-  const deleteStudent = useCallback(async (id: string) => {
-    await db.deleteStudent(id);
-    await loadStudents();
-  }, [loadStudents]);
+    const loadSettings = async () => {
+      return db.getSettings();
+    };
 
-  const searchStudents = useCallback(async (query: string) => {
-    return db.searchStudents(query);
-  }, []);
+    return {
+      isReady,
+      students: [],
+      loadStudents,
+      getStudents: loadStudents,
+      getStudent: async (id: string) => db.getStudentById(id),
+      getStudentWithDetails: async (id: string) => db.getStudentWithDetails(id),
+      createStudent: async (data: StudentFormData) => db.createStudent(data),
+      updateStudent: async (id: string, data: Partial<StudentFormData>) => db.updateStudent(id, data),
+      deleteStudent: async (id: string) => db.deleteStudent(id),
+      searchStudents: async (query: string) => db.searchStudents(query),
 
-  // Subjects
-  const loadSubjects = useCallback(async (activeOnly: boolean = false) => {
-    const list = await db.getAllSubjects(activeOnly);
-    setSubjects(list);
-    return list;
-  }, []);
+      subjects: [],
+      loadSubjects,
+      getSubjects: loadSubjects,
+      getSubject: async (id: string) => db.getSubjectById(id),
+      createSubject: async (data: SubjectFormData) => db.createSubject(data),
+      updateSubject: async (id: string, data: Partial<SubjectFormData>) => db.updateSubject(id, data),
+      deleteSubject: async (id: string) => db.deleteSubject(id),
+      getSubjectsForStudent: async (studentId: string) => db.getSubjectsForStudent(studentId),
+      assignSubjectToStudent: async (studentId: string, subjectId: string, customRate?: number) =>
+        db.assignSubjectToStudent(studentId, subjectId, customRate),
+      removeSubjectFromStudent: async (studentId: string, subjectId: string) =>
+        db.removeSubjectFromStudent(studentId, subjectId),
 
-  const getSubject = useCallback(async (id: string) => {
-    return db.getSubjectById(id);
-  }, []);
+      classes: [],
+      loadClasses,
+      getClasses: loadClasses,
+      getClass: async (id: string) => db.getClassSessionById(id),
+      getClassesByStudent: async (studentId: string) => db.getAllClassSessions({ studentId }),
+      createClass: async (data: ClassSessionFormData) => db.createClassSession(data),
+      updateClass: async (id: string, data: Partial<ClassSessionFormData>) => db.updateClassSession(id, data),
+      deleteClass: async (id: string) => db.deleteClassSession(id),
+      getUpcomingClasses: async (limit: number = 5) => db.getUpcomingClasses(limit),
+      getTodayClasses: async () => db.getTodayClasses(),
 
-  const createSubject = useCallback(async (data: SubjectFormData) => {
-    const created = await db.createSubject(data);
-    await loadSubjects();
-    return created;
-  }, [loadSubjects]);
+      payments: [],
+      loadPayments,
+      getPayments: loadPayments,
+      getPayment: async (id: string) => db.getPaymentById(id),
+      getPaymentsByStudent: async (studentId: string) => db.getAllPayments({ studentId }),
+      createPayment: async (data: PaymentFormData) => db.createPayment(data),
+      updatePayment: async (id: string, data: Partial<PaymentFormData>) => db.updatePayment(id, data),
+      deletePayment: async (id: string) => db.deletePayment(id),
+      getRecentPayments: async (limit: number = 5) => db.getRecentPayments(limit),
+      getPendingPayments: async () => db.getPendingPayments(),
+      getStudentBalance: async (studentId: string) => {
+        const paid = await db.getStudentTotalPaid(studentId);
+        const pending = await db.getStudentPendingAmount(studentId);
+        return { charged: paid + pending, paid, pending };
+      },
+      getStudentBalances: async () => db.getStudentBalances(),
 
-  const updateSubject = useCallback(async (id: string, data: Partial<SubjectFormData>) => {
-    const updated = await db.updateSubject(id, data);
-    await loadSubjects();
-    return updated;
-  }, [loadSubjects]);
+      dashboardStats: null,
+      loadDashboardStats,
+      getMonthlyIncome: async (monthsCount: number = 6) => {
+        const currentYear = new Date().getFullYear();
+        const yearly = await db.getYearlyIncomeByMonth(currentYear);
+        return yearly.slice(-monthsCount);
+      },
+      getMonthlyReport: async (year: number, month: number) => db.getMonthlyReport(year, month),
 
-  const deleteSubject = useCallback(async (id: string) => {
-    await db.deleteSubject(id);
-    await loadSubjects();
-  }, [loadSubjects]);
+      settings: null,
+      loadSettings,
+      updateSettings: async (data: Partial<AppSettings>) => db.updateSettings(data),
 
-  const getSubjectsForStudent = useCallback(async (studentId: string) => {
-    return db.getSubjectsForStudent(studentId);
-  }, []);
+      exportData: async () => db.exportData(),
+      clearAllData: async () => db.clearAllData(),
+      resetWithSeed: async () => {
+        await db.clearAllData();
+        await seedDatabase();
+      },
+      refreshAll: async () => {
+        await Promise.all([
+          loadStudents(),
+          loadSubjects(),
+          loadClasses(),
+          loadPayments(),
+          loadDashboardStats(),
+          loadSettings(),
+        ]);
+      },
+    };
+  }, [isReady]);
 
-  const assignSubjectToStudent = useCallback(async (studentId: string, subjectId: string, customRate?: number) => {
-    await db.assignSubjectToStudent(studentId, subjectId, customRate);
-  }, []);
-
-  const removeSubjectFromStudent = useCallback(async (studentId: string, subjectId: string) => {
-    await db.removeSubjectFromStudent(studentId, subjectId);
-  }, []);
-
-  // Classes
-  const loadClasses = useCallback(async (filter?: ClassFilter) => {
-    const list = await db.getAllClassSessions(filter);
-    setClasses(list);
-    return list;
-  }, []);
-
-  const getClass = useCallback(async (id: string) => {
-    return db.getClassSessionById(id);
-  }, []);
-
-  const createClass = useCallback(async (data: ClassSessionFormData) => {
-    const created = await db.createClassSession(data);
-    await loadClasses();
-    return created;
-  }, [loadClasses]);
-
-  const updateClass = useCallback(async (id: string, data: Partial<ClassSessionFormData>) => {
-    const updated = await db.updateClassSession(id, data);
-    await loadClasses();
-    return updated;
-  }, [loadClasses]);
-
-  const deleteClass = useCallback(async (id: string) => {
-    await db.deleteClassSession(id);
-    await loadClasses();
-  }, [loadClasses]);
-
-  const getUpcomingClasses = useCallback(async (limit: number = 5) => {
-    return db.getUpcomingClasses(limit);
-  }, []);
-
-  const getTodayClasses = useCallback(async () => {
-    return db.getTodayClasses();
-  }, []);
-
-  const getClassesByStudent = useCallback(async (studentId: string) => {
-    return db.getAllClassSessions({ studentId });
-  }, []);
-
-  // Payments
-  const loadPayments = useCallback(async (filter?: PaymentFilter) => {
-    const list = await db.getAllPayments(filter);
-    setPayments(list);
-    return list;
-  }, []);
-
-  const getPayment = useCallback(async (id: string) => {
-    return db.getPaymentById(id);
-  }, []);
-
-  const getPaymentsByStudent = useCallback(async (studentId: string) => {
-    return db.getAllPayments({ studentId });
-  }, []);
-
-  const createPayment = useCallback(async (data: PaymentFormData) => {
-    const created = await db.createPayment(data);
-    await loadPayments();
-    return created;
-  }, [loadPayments]);
-
-  const updatePayment = useCallback(async (id: string, data: Partial<PaymentFormData>) => {
-    const updated = await db.updatePayment(id, data);
-    await loadPayments();
-    return updated;
-  }, [loadPayments]);
-
-  const deletePayment = useCallback(async (id: string) => {
-    await db.deletePayment(id);
-    await loadPayments();
-  }, [loadPayments]);
-
-  const getRecentPayments = useCallback(async (limit: number = 5) => {
-    return db.getRecentPayments(limit);
-  }, []);
-
-  const getPendingPayments = useCallback(async () => {
-    return db.getPendingPayments();
-  }, []);
-
-  const getStudentBalance = useCallback(async (studentId: string) => {
-    const paid = await db.getStudentTotalPaid(studentId);
-    const pending = await db.getStudentPendingAmount(studentId);
-    return { charged: paid + pending, paid, pending };
-  }, []);
-
-  const getStudentBalances = useCallback(async () => {
-    return db.getStudentBalances();
-  }, []);
-
-  // Dashboard & Reports
-  const loadDashboardStats = useCallback(async () => {
-    const stats = await db.getDashboardStats();
-    setDashboardStats(stats);
-    return stats;
-  }, []);
-
-  const getMonthlyIncome = useCallback(async (monthsCount: number = 6) => {
-    const currentYear = new Date().getFullYear();
-    const yearly = await db.getYearlyIncomeByMonth(currentYear);
-    return yearly.slice(-monthsCount);
-  }, []);
-
-  const getMonthlyReport = useCallback(async (year: number, month: number) => {
-    return db.getMonthlyReport(year, month);
-  }, []);
-
-  // Settings
-  const loadSettings = useCallback(async () => {
-    const s = await db.getSettings();
-    setSettings(s);
-    return s;
-  }, []);
-
-  const updateSettings = useCallback(async (data: Partial<AppSettings>) => {
-    const updated = await db.updateSettings(data);
-    setSettings(updated);
-    return updated;
-  }, []);
-
-  // Utils
-  const exportData = useCallback(async () => {
-    return db.exportData();
-  }, []);
-
-  const clearAllData = useCallback(async () => {
-    await db.clearAllData();
-    await refreshAll();
-  }, []);
-
-  const resetWithSeed = useCallback(async () => {
-    await db.clearAllData();
-    await seedDatabase();
-    await refreshAll();
-  }, []);
-
-  const refreshAll = useCallback(async () => {
-    await Promise.all([
-      loadStudents(),
-      loadSubjects(),
-      loadClasses(),
-      loadPayments(),
-      loadDashboardStats(),
-      loadSettings(),
-    ]);
-  }, [loadStudents, loadSubjects, loadClasses, loadPayments, loadDashboardStats, loadSettings]);
-
-  return (
-    <DatabaseContext.Provider
-      value={{
-        isReady,
-        students,
-        loadStudents,
-        getStudents: loadStudents,
-        getStudent,
-        getStudentWithDetails,
-        createStudent,
-        updateStudent,
-        deleteStudent,
-        searchStudents,
-        subjects,
-        loadSubjects,
-        getSubjects: loadSubjects,
-        getSubject,
-        createSubject,
-        updateSubject,
-        deleteSubject,
-        getSubjectsForStudent,
-        assignSubjectToStudent,
-        removeSubjectFromStudent,
-        classes,
-        loadClasses,
-        getClasses: loadClasses,
-        getClass,
-        createClass,
-        updateClass,
-        deleteClass,
-        getUpcomingClasses,
-        getTodayClasses,
-        getClassesByStudent,
-        payments,
-        loadPayments,
-        getPayments: loadPayments,
-        getPayment,
-        getPaymentsByStudent,
-        createPayment,
-        updatePayment,
-        deletePayment,
-        getRecentPayments,
-        getPendingPayments,
-        getStudentBalance,
-        getStudentBalances,
-        dashboardStats,
-        loadDashboardStats,
-        getMonthlyIncome,
-        getMonthlyReport,
-        settings,
-        loadSettings,
-        updateSettings,
-        exportData,
-        clearAllData,
-        resetWithSeed,
-        refreshAll,
-      }}
-    >
-      {children}
-    </DatabaseContext.Provider>
-  );
+  return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
 }
 
 export function useDatabase(): DatabaseContextType {

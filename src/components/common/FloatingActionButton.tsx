@@ -27,13 +27,14 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 24,
+    bottom: 80,
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 50,
     ...Shadows.lg,
   },
 });
