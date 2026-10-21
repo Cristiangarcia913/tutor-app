@@ -96,8 +96,12 @@ export default function TimePicker({
         statusBarTranslucent
         onRequestClose={() => setVisible(false)}
       >
-        <Pressable style={styles.overlay} onPress={() => setVisible(false)}>
-          <Pressable style={styles.dialog} onPress={() => {}}>
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={() => setVisible(false)}
+        >
+          <View style={styles.dialog} onStartShouldSetResponder={() => true}>
             <Text style={styles.dialogTitle}>Seleccionar hora</Text>
 
             <View style={styles.pickerRow}>
@@ -182,8 +186,8 @@ export default function TimePicker({
                 <Text style={styles.confirmText}>Aceptar</Text>
               </TouchableOpacity>
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </View>
   );

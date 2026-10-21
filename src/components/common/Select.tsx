@@ -81,14 +81,19 @@ export default function Select({
         statusBarTranslucent
         onRequestClose={() => setVisible(false)}
       >
-        <Pressable style={styles.overlay} onPress={() => setVisible(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={() => setVisible(false)}
+        >
+          <View style={styles.sheet} onStartShouldSetResponder={() => true}>
             <View style={styles.handle} />
             <Text style={styles.sheetTitle}>{label}</Text>
             <FlatList
               data={options}
               keyExtractor={(item) => item.value}
               style={styles.list}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => {
                 const isActive = item.value === value;
                 return (
@@ -119,8 +124,8 @@ export default function Select({
                 );
               }}
             />
-          </Pressable>
-        </Pressable>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </View>
   );

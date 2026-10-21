@@ -46,7 +46,7 @@ export default function PaymentDetailScreen() {
   const [deleting, setDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (!id) return;
+    if (!id || id === 'new') return;
     try {
       const paymentData = await db.getPayment(id);
       if (paymentData) {
@@ -62,8 +62,12 @@ export default function PaymentDetailScreen() {
   }, [db, id]);
 
   useEffect(() => {
+    if (id === 'new') {
+      router.replace('/payment/new');
+      return;
+    }
     loadData();
-  }, [loadData]);
+  }, [id, loadData, router]);
 
   const handleStatusChange = async (newStatus: Payment['status']) => {
     if (!payment) return;
@@ -89,7 +93,7 @@ export default function PaymentDetailScreen() {
     }
   };
 
-  if (loading) {
+  if (loading || id === 'new') {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={Colors.primary} />

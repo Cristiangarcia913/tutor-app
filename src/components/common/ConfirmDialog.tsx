@@ -1,9 +1,9 @@
 import React from 'react';
 import {
   Modal,
-  Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { Colors, BorderRadius, FontSizes, Spacing, Shadows } from '../../constants/theme';
@@ -38,8 +38,12 @@ export default function ConfirmDialog({
       statusBarTranslucent
       onRequestClose={onCancel}
     >
-      <Pressable style={styles.overlay} onPress={onCancel}>
-        <Pressable style={styles.dialog} onPress={() => {}}>
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onCancel}
+      >
+        <View style={styles.dialog} onStartShouldSetResponder={() => true}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>
           <View style={styles.actions}>
@@ -62,8 +66,8 @@ export default function ConfirmDialog({
               />
             </View>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </TouchableOpacity>
     </Modal>
   );
 }

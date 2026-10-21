@@ -91,6 +91,12 @@ export default function NewClassScreen() {
     loadOptions();
   }, [db, params.studentId]);
 
+  useEffect(() => {
+    if (params.studentId) {
+      setStudentId(params.studentId);
+    }
+  }, [params.studentId]);
+
   // Update rate when subject changes
   const handleSubjectChange = (newSubjectId: string) => {
     setSubjectId(newSubjectId);
@@ -115,7 +121,7 @@ export default function NewClassScreen() {
 
   // Compute total amount
   const totalAmount = useMemo(() => {
-    const hourlyRate = parseFloat(rate) || 0;
+    const hourlyRate = parseFloat(rate.replace(',', '.')) || 0;
     return (duration / 60) * hourlyRate;
   }, [duration, rate]);
 
@@ -135,6 +141,7 @@ export default function NewClassScreen() {
 
     setSaving(true);
     try {
+      const numericRate = parseFloat(rate.replace(',', '.')) || 0;
       const data: ClassSessionFormData = {
         studentId,
         subjectId,
@@ -142,15 +149,19 @@ export default function NewClassScreen() {
         startTime,
         endTime,
         duration,
-        rate: parseFloat(rate) || 0,
+        rate: numericRate,
         status,
         location,
-        notes,
-        homework,
+        notes: notes.trim(),
+        homework: homework.trim(),
       };
 
       await db.createClass(data);
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/classes');
+      }
     } catch (error) {
       console.error('Error creating class:', error);
       Alert.alert('Error', 'No se pudo guardar la clase.');
@@ -194,7 +205,10 @@ export default function NewClassScreen() {
       style={styles.container}
     >
       <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/classes'))}
+          style={styles.closeButton}
+        >
           <Ionicons name="close" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Nueva Clase</Text>

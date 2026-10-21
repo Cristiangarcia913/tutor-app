@@ -64,7 +64,11 @@ export default function NewStudentScreen() {
       };
 
       await createStudent(data);
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/students');
+      }
     } catch (error) {
       console.error('Error creating student:', error);
       Alert.alert('Error', 'No se pudo guardar el alumno. Inténtalo de nuevo.');
@@ -80,7 +84,10 @@ export default function NewStudentScreen() {
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/students'))}
+          style={styles.closeButton}
+        >
           <Ionicons name="close" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Nuevo Alumno</Text>

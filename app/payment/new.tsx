@@ -91,6 +91,19 @@ export default function NewPaymentScreen() {
     loadStudents();
   }, [db, params.studentId, loadBalance]);
 
+  useEffect(() => {
+    if (params.amount !== undefined && params.amount !== null && params.amount !== '') {
+      setAmount(String(params.amount));
+    }
+  }, [params.amount]);
+
+  useEffect(() => {
+    if (params.studentId) {
+      setStudentId(params.studentId);
+      loadBalance(params.studentId);
+    }
+  }, [params.studentId, loadBalance]);
+
   const handleStudentSelect = (id: string) => {
     setStudentId(id);
     setErrors((prev) => ({ ...prev, studentId: '' }));
@@ -100,7 +113,12 @@ export default function NewPaymentScreen() {
   const handleSubmit = async () => {
     const errs: Record<string, string> = {};
     if (!studentId) errs.studentId = 'Selecciona un alumno';
-    if (!amount || parseFloat(amount) <= 0) errs.amount = 'Introduce un importe válido';
+
+    const cleanAmountStr = amount.trim().replace(',', '.');
+    const parsedAmount = parseFloat(cleanAmountStr);
+    if (!cleanAmountStr || isNaN(parsedAmount) || parsedAmount <= 0) {
+      errs.amount = 'Introduce un importe válido mayor que 0';
+    }
     if (!date) errs.date = 'Indica la fecha';
 
     if (Object.keys(errs).length > 0) {
@@ -112,17 +130,21 @@ export default function NewPaymentScreen() {
     try {
       const data: PaymentFormData = {
         studentId,
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         date,
         method,
         status,
-        concept,
-        notes,
+        concept: concept.trim() || 'Pago de clases particulares',
+        notes: notes.trim(),
         classSessionIds: [],
       };
 
       await db.createPayment(data);
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/finances');
+      }
     } catch (error) {
       console.error('Error recording payment:', error);
       Alert.alert('Error', 'No se pudo guardar el pago.');
@@ -163,7 +185,10 @@ export default function NewPaymentScreen() {
       style={styles.container}
     >
       <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/finances'))}
+          style={styles.closeButton}
+        >
           <Ionicons name="close" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Nuevo Pago</Text>

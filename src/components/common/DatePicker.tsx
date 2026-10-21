@@ -37,10 +37,28 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return d === 0 ? 6 : d - 1;
 }
 
+function parseDateParts(dateStr: string): { year: number; month: number; day: number } | null {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+      return { year, month, day };
+    }
+  }
+  return null;
+}
+
 function formatDisplayDate(dateStr: string): string {
   if (!dateStr) return '';
+  const parsed = parseDateParts(dateStr);
+  if (parsed) {
+    return `${parsed.day} ${MONTH_LABELS_SHORT[parsed.month] || ''} ${parsed.year}`;
+  }
   const d = new Date(dateStr);
-  return `${d.getDate()} ${MONTH_LABELS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  return `${d.getDate()} ${MONTH_LABELS_SHORT[d.getMonth()] || ''} ${d.getFullYear()}`;
 }
 
 function pad(n: number): string {
@@ -55,9 +73,10 @@ export default function DatePicker({
 }: DatePickerProps) {
   const [visible, setVisible] = useState(false);
 
-  const initialDate = value ? new Date(value) : new Date();
-  const [viewYear, setViewYear] = useState(initialDate.getFullYear());
-  const [viewMonth, setViewMonth] = useState(initialDate.getMonth());
+  const initialParsed = parseDateParts(value);
+  const now = new Date();
+  const [viewYear, setViewYear] = useState(initialParsed ? initialParsed.year : now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initialParsed ? initialParsed.month : now.getMonth());
 
   const selectedDate = value ? new Date(value) : null;
 
@@ -95,11 +114,12 @@ export default function DatePicker({
   }
 
   function isSelected(day: number): boolean {
-    if (!selectedDate) return false;
+    const parsed = parseDateParts(value);
+    if (!parsed) return false;
     return (
-      selectedDate.getFullYear() === viewYear &&
-      selectedDate.getMonth() === viewMonth &&
-      selectedDate.getDate() === day
+      parsed.year === viewYear &&
+      parsed.month === viewMonth &&
+      parsed.day === day
     );
   }
 
@@ -145,8 +165,12 @@ export default function DatePicker({
         statusBarTranslucent
         onRequestClose={() => setVisible(false)}
       >
-        <Pressable style={styles.overlay} onPress={() => setVisible(false)}>
-          <Pressable style={styles.dialog} onPress={() => {}}>
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={() => setVisible(false)}
+        >
+          <View style={styles.dialog} onStartShouldSetResponder={() => true}>
             {/* Header */}
             <View style={styles.calHeader}>
               <TouchableOpacity onPress={handlePrevMonth} style={styles.navBtn}>
@@ -196,8 +220,8 @@ export default function DatePicker({
                 </View>
               ))}
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </View>
   );

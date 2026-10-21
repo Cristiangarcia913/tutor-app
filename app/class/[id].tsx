@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDatabase } from '../../src/hooks/useDatabase';
 import {
@@ -49,7 +49,7 @@ export default function ClassDetailScreen() {
   const [deleting, setDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (!id) return;
+    if (!id || id === 'new') return;
     try {
       const classData = await db.getClass(id);
       if (classData) {
@@ -68,9 +68,15 @@ export default function ClassDetailScreen() {
     }
   }, [db, id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      if (id === 'new') {
+        router.replace('/class/new');
+        return;
+      }
+      loadData();
+    }, [id, loadData, router])
+  );
 
   const handleStatusChange = async (newStatus: ClassSession['status']) => {
     if (!session) return;
@@ -96,7 +102,7 @@ export default function ClassDetailScreen() {
     }
   };
 
-  if (loading) {
+  if (loading || id === 'new') {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={Colors.primary} />
