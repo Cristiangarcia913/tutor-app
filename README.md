@@ -7,7 +7,7 @@
 ![React Native](https://img.shields.io/badge/React%20Native-0.76-61DAFB?logo=react&logoColor=black)
 ![Expo](https://img.shields.io/badge/Expo-SDK%2052-000020?logo=expo)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript&logoColor=white)
-![iOS Ready](https://img.shields.io/badge/iOS-iPhone%2013%20Compatible-000000?logo=apple&logoColor=white)
+![iOS Universal](https://img.shields.io/badge/iOS-Universal%20(Todos%20los%20iPhone%20y%20iPad)-000000?logo=apple&logoColor=white)
 ![Android Ready](https://img.shields.io/badge/Android-APK%20Ready-3DDC84?logo=android&logoColor=white)
 ![Web Ready](https://img.shields.io/badge/Web-Responsive-FF4088?logo=google-chrome&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -39,10 +39,19 @@ Diseñada con estándares de diseño nativos de **iOS (Human Interface Guideline
   - Consulta rápida de su horario semanal y próximas clases particulares.
   - Lista interactiva de deberes y tareas pendientes asignadas por el profesor, con casillas de verificación para marcar el progreso.
 - 👨‍👩‍👧 **Perfil Padre / Familia:**
-  - Supervisión clara del balance económico: clases impartidas, total abonado y saldo pendiente de pago.
-  - Asistente de pago por **Bizum** (con copia rápida del teléfono del profesor e importe pendiente) o registro en **Efectivo**.
-  - Visualización del calendario de clases de su hijo/a y seguimiento de las tareas escolares.
-  - **Selector de Rol y Acceso:** Barra superior integrada para cambiar fácilmente de perfil o introducir el código de estudiante asignado.
+  - Supervisión clara del estado de cuenta y recibos pendientes (mostrando exclusivamente si la cuenta está al día o si hay algún pago pendiente, sin exponer la facturación o ingresos acumulados del profesor).
+  - Asistente directo para pagar por **Bizum** (con copia en 1 clic del teléfono del profesor e importe adeudado) o registro en **Efectivo**.
+  - Horario completo de clases de su hijo/a con información de ubicación clara.
+  - Supervisión de los deberes y tareas escolares que tiene asignadas.
+  - **Selector de Rol y Acceso:** Barra superior discreta para cambiar fácilmente de perfil o introducir el código de estudiante asignado.
+
+### 🔔 Alertas y Recordatorios de Clase con Ubicación
+- **Notificaciones inteligentes de clase:** Avisos que recuerdan el horario de inicio y la modalidad/ubicación exacta de la sesión:
+  - 📍 **Presencial:** Dirección del centro o aula de estudio.
+  - 🏠 **A Domicilio:** Dirección del alumno.
+  - 💻 **Online:** Enlace y plataforma de videollamada.
+- **Acción en 1 clic de aviso por WhatsApp:** Permite al profesor enviar al alumno o a la familia un mensaje cordial preformateado con todos los datos de la clase.
+- **Recordatorios locales en el dispositivo:** Botón para activar alertas del sistema en el móvil (iOS y Android) o navegador web con 1 hora de antelación.
 
 ### 📅 Control y Repetición Inteligente de Clases (Calendario Escolar)
 - **Programador de clases periódicas:** Posibilidad de repetir la clase automáticamente semanalmente durante 1 mes, un trimestre o hasta fin de curso (junio).
@@ -81,23 +90,25 @@ npm install
 
 ---
 
-### 📱 A. Cómo Usarlo en iPhone (iOS / iPhone 13)
+### 📱 A. Cómo Usarlo en Cualquier Dispositivo iOS (iPhone y iPad)
+
+TutorApp es completamente **Universal** y está optimizada para **todos los modelos de iPhone** (iPhone SE, iPhone 8, X, 11, 12, 13, 14, 15, 16, Pro, Plus y Pro Max) así como para **iPad y iPad Pro** (iOS/iPadOS 15.1 o superior).
 
 Tienes dos métodos disponibles:
 
 #### Método 1: Inmediato con Expo Go (El más rápido, sin registro de desarrollador)
-1. En tu **iPhone 13**, abre la App Store y descarga la aplicación gratuita **[Expo Go](https://apps.apple.com/app/expo-go/id982107779)**.
+1. En tu **iPhone o iPad**, abre la App Store y descarga la aplicación gratuita **[Expo Go](https://apps.apple.com/app/expo-go/id982107779)**.
 2. En tu ordenador, arranca el servidor de desarrollo en la carpeta del proyecto:
    ```bash
    npx expo start
    ```
-   *(Si tu ordenador y tu iPhone están en redes Wi-Fi diferentes, usa `npx expo start --tunnel`).*
-3. Abre la app **Cámara** en tu iPhone y enfoca el **código QR** que aparece en la terminal de tu ordenador.
+   *(Si tu ordenador y tu móvil están en redes Wi-Fi diferentes o datos móviles, usa `npx expo start --tunnel`).*
+3. Abre la app **Cámara** en tu iPhone o iPad y enfoca el **código QR** que aparece en la terminal de tu ordenador.
 4. Toca en el aviso que dice *"Abrir en Expo Go"*.
-5. ¡Listo! La app cargará en tu iPhone 13 con rendimiento nativo, animaciones y gestos táctiles.
+5. ¡Listo! La app cargará en tu dispositivo iOS con rendimiento nativo fluido, animaciones y soporte para gestos.
 
 #### Método 2: Instalar como App Nativa (.ipa) mediante EAS Build
-Si quieres que la app aparezca instalada en la pantalla de inicio de tu iPhone de forma permanente:
+Si quieres que la app aparezca instalada en la pantalla de inicio de tu iPhone o iPad de forma permanente:
 ```bash
 # Instalar EAS CLI de Expo
 npm install -g eas-cli
@@ -105,10 +116,10 @@ npm install -g eas-cli
 # Iniciar sesión con tu cuenta gratuita de Expo
 eas login
 
-# Configurar y compilar para iOS (genera el perfil de desarrollo para tu iPhone)
+# Configurar y compilar para iOS (genera el perfil de desarrollo para tus dispositivos)
 eas build --platform ios --profile development
 ```
-Al finalizar la compilación en la nube, EAS te entregará un enlace y código QR para instalar el archivo directamente en tu iPhone 13.
+Al finalizar la compilación en la nube, EAS te entregará un enlace y código QR para instalar el archivo directamente en tu iPhone o iPad.
 
 ---
 

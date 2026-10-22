@@ -25,6 +25,7 @@ import IncomeChart from '../../src/components/finances/IncomeChart';
 import RoleSwitcherBar from '../../src/components/common/RoleSwitcherBar';
 import StudentPortalView from '../../src/components/roles/StudentPortalView';
 import ParentPortalView from '../../src/components/roles/ParentPortalView';
+import ClassReminderAlert from '../../src/components/classes/ClassReminderAlert';
 import { useAuthRole } from '../../src/hooks/useAuthRole';
 import {
   Colors,
@@ -252,6 +253,16 @@ export default function DashboardScreen() {
             <Text style={styles.shortcutText}>Asignaturas</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Alerta Destacada de Próxima Clase (Recordatorio + Ubicación) */}
+        {upcomingClasses.length > 0 && (
+          <ClassReminderAlert
+            session={upcomingClasses[0]}
+            student={students[upcomingClasses[0].studentId]}
+            subject={subjects[upcomingClasses[0].subjectId]}
+            teacherName={teacherName}
+          />
+        )}
 
         {/* Upcoming Classes Section */}
         <SectionHeader

@@ -11,7 +11,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useDatabase } from '../../hooks/useDatabase';
 import { useAuthRole } from '../../hooks/useAuthRole';
-import { Card, Badge, EmptyState } from '../common';
+import { Card, Badge } from '../common';
+import ClassReminderAlert from '../classes/ClassReminderAlert';
 import {
   Colors,
   Spacing,
@@ -19,8 +20,9 @@ import {
   BorderRadius,
   formatDate,
   formatTime,
+  getLocationLabel,
 } from '../../constants/theme';
-import type { ClassSession, Subject } from '../../types';
+import type { ClassSession, Subject, AppSettings } from '../../types';
 
 export default function StudentPortalView() {
   const db = useDatabase();
@@ -30,6 +32,7 @@ export default function StudentPortalView() {
   const [refreshing, setRefreshing] = useState(false);
   const [classes, setClasses] = useState<ClassSession[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
+  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [completedHomework, setCompletedHomework] = useState<Record<string, boolean>>({});
 
   const loadStudentData = useCallback(async () => {
@@ -38,9 +41,10 @@ export default function StudentPortalView() {
       return;
     }
     try {
-      const [classList, subjectList] = await Promise.all([
+      const [classList, subjectList, sets] = await Promise.all([
         db.getClassesByStudent(activeStudent.id),
         db.loadSubjects(),
+        db.loadSettings(),
       ]);
 
       const subMap: Record<string, Subject> = {};
@@ -49,6 +53,7 @@ export default function StudentPortalView() {
       });
       setSubjects(subMap);
       setClasses(classList);
+      setSettings(sets);
     } catch (e) {
       console.error('Error loading student portal data:', e);
     } finally {
@@ -91,7 +96,9 @@ export default function StudentPortalView() {
 
   const upcomingClasses = classes
     .filter((c) => c.status === 'scheduled')
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`));
+
+  const nextUpcomingClass = upcomingClasses.length > 0 ? upcomingClasses[0] : null;
 
   const classesWithHomework = classes.filter((c) => c.homework && c.homework.trim().length > 0);
 
@@ -101,7 +108,7 @@ export default function StudentPortalView() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Header Estudiante */}
+      {/* Header Estudiante - Limpio y personal */}
       <View style={styles.welcomeCard}>
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarLetter}>{activeStudent.firstName[0]}</Text>
@@ -114,19 +121,29 @@ export default function StudentPortalView() {
         </View>
       </View>
 
+      {/* Recordatorio Alerta de Próxima Clase (con lugar y botón de notificación) */}
+      {nextUpcomingClass && (
+        <ClassReminderAlert
+          session={nextUpcomingClass}
+          student={activeStudent}
+          subject={subjects[nextUpcomingClass.subjectId]}
+          teacherName={settings?.teacherName}
+          isStudentOrParentView={true}
+        />
+      )}
+
       {/* Mis Deberes y Tareas Asignadas */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="checkbox-outline" size={20} color={Colors.primary} />
-          <Text style={styles.sectionTitle}>Mis Deberes y Tareas</Text>
+          <Ionicons name="checkbox-outline" size={18} color={Colors.textPrimary} />
+          <Text style={styles.sectionTitle}>Mis Tareas y Deberes</Text>
         </View>
 
         {classesWithHomework.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Ionicons name="sparkles" size={28} color={Colors.success} />
-            <Text style={styles.emptyCardTitle}>¡Estás al día!</Text>
-            <Text style={styles.emptyCardSub}>No tienes tareas pendientes asignadas.</Text>
-          </Card>
+          <View style={styles.emptySimpleCard}>
+            <Ionicons name="sparkles-outline" size={20} color={Colors.success} />
+            <Text style={styles.emptySimpleText}>¡Estás al día! No tienes tareas pendientes asignadas.</Text>
+          </View>
         ) : (
           classesWithHomework.map((cls) => {
             const isDone = !!completedHomework[cls.id];
@@ -142,12 +159,14 @@ export default function StudentPortalView() {
                   style={[styles.checkbox, isDone && styles.checkboxDone]}
                   onPress={() => toggleHomework(cls.id)}
                 >
-                  {isDone && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                  {isDone && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
                 </TouchableOpacity>
 
                 <View style={styles.taskInfo}>
                   <View style={styles.taskSubjectRow}>
-                    <Text style={styles.taskSubject}>{subject?.name || 'Clase particular'}</Text>
+                    <Text style={[styles.taskSubject, isDone && styles.taskSubjectDone]}>
+                      {subject?.name || 'Clase particular'}
+                    </Text>
                     <Text style={styles.taskDate}>Para el {formatDate(cls.date)}</Text>
                   </View>
                   <Text style={[styles.taskText, isDone && styles.taskTextDone]}>
@@ -163,41 +182,63 @@ export default function StudentPortalView() {
       {/* Próximas Clases Programadas */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
+          <Ionicons name="calendar-outline" size={18} color={Colors.textPrimary} />
           <Text style={styles.sectionTitle}>Mis Próximas Clases</Text>
         </View>
 
         {upcomingClasses.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Ionicons name="cafe-outline" size={28} color={Colors.textTertiary} />
-            <Text style={styles.emptyCardTitle}>Sin clases programadas</Text>
-            <Text style={styles.emptyCardSub}>El profesor aún no ha agendado nuevas clases.</Text>
-          </Card>
+          <View style={styles.emptySimpleCard}>
+            <Ionicons name="calendar-outline" size={20} color={Colors.textTertiary} />
+            <Text style={styles.emptySimpleText}>No tienes clases programadas próximamente.</Text>
+          </View>
         ) : (
           upcomingClasses.map((cls) => {
             const subject = subjects[cls.subjectId];
+            const isOnline = cls.location === 'online';
+            const isHome = cls.location === 'domicilio';
+
             return (
-              <Card key={cls.id} style={styles.classCard}>
+              <View key={cls.id} style={styles.classCard}>
                 <View style={styles.classHeader}>
-                  <View style={[styles.subjectIndicator, { backgroundColor: subject?.color || Colors.primary }]}>
-                    <Ionicons name="book-outline" size={14} color="#FFFFFF" />
-                  </View>
                   <View style={styles.classTitleInfo}>
                     <Text style={styles.classSubject}>{subject?.name || 'Clase Particular'}</Text>
                     <Text style={styles.classDate}>
                       {formatDate(cls.date)} • {formatTime(cls.startTime)} - {formatTime(cls.endTime)}
                     </Text>
                   </View>
-                  <Badge text={`${cls.duration} min`} color={Colors.primary} backgroundColor={Colors.primaryBg} size="sm" />
+
+                  <View
+                    style={[
+                      styles.locationTag,
+                      {
+                        backgroundColor: isOnline ? '#EFF6FF' : isHome ? '#FFFBEB' : '#ECFDF5',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={isOnline ? 'videocam-outline' : isHome ? 'home-outline' : 'location-outline'}
+                      size={12}
+                      color={isOnline ? '#2563EB' : isHome ? '#D97706' : '#059669'}
+                    />
+                    <Text
+                      style={[
+                        styles.locationTagText,
+                        {
+                          color: isOnline ? '#2563EB' : isHome ? '#D97706' : '#059669',
+                        },
+                      ]}
+                    >
+                      {getLocationLabel(cls.location)}
+                    </Text>
+                  </View>
                 </View>
 
                 {cls.notes ? (
                   <View style={styles.classNotesBox}>
-                    <Ionicons name="information-circle-outline" size={14} color={Colors.textSecondary} />
                     <Text style={styles.classNotesText}>{cls.notes}</Text>
                   </View>
                 ) : null}
-              </Card>
+              </View>
             );
           })
         )}
@@ -209,31 +250,45 @@ export default function StudentPortalView() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
   },
   content: {
-    padding: Spacing.lg,
-    paddingBottom: 60,
-    gap: Spacing.lg,
+    padding: Spacing.md,
+    paddingBottom: 70,
+    gap: Spacing.md,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+    backgroundColor: '#F8FAFC',
+  },
+  emptyTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
   welcomeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0D9488',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
-    gap: Spacing.md,
+    backgroundColor: '#FFFFFF',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: Spacing.sm,
   },
   avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarLetter: {
-    fontSize: FontSizes.xl,
+    fontSize: FontSizes.md,
     fontWeight: '800',
     color: '#FFFFFF',
   },
@@ -241,70 +296,69 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeGreeting: {
-    fontSize: FontSizes.lg,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
   welcomeCourse: {
-    fontSize: FontSizes.xs,
-    color: 'rgba(255, 255, 255, 0.85)',
-    marginTop: 2,
-    fontWeight: '500',
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
   },
   section: {
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 6,
     marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: FontSizes.md,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.xl,
-    gap: Spacing.xs,
-  },
-  emptyCardTitle: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginTop: 4,
   },
-  emptyCardSub: {
+  emptySimpleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  emptySimpleText: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
-    textAlign: 'center',
   },
   taskCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: Colors.surface,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#E2E8F0',
+    padding: Spacing.md,
     gap: Spacing.sm,
+    marginBottom: 6,
   },
   taskCardDone: {
-    backgroundColor: Colors.surfaceVariant,
-    opacity: 0.7,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    opacity: 0.75,
   },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
+    backgroundColor: '#FFFFFF',
   },
   checkboxDone: {
     backgroundColor: Colors.success,
@@ -322,37 +376,37 @@ const styles = StyleSheet.create({
   taskSubject: {
     fontSize: FontSizes.xs,
     fontWeight: '700',
-    color: Colors.primary,
+    color: Colors.textPrimary,
+  },
+  taskSubjectDone: {
+    textDecorationLine: 'line-through',
+    color: Colors.textSecondary,
   },
   taskDate: {
-    fontSize: 10,
-    color: Colors.textTertiary,
+    fontSize: 11,
+    color: Colors.textSecondary,
   },
   taskText: {
     fontSize: FontSizes.sm,
-    fontWeight: '600',
     color: Colors.textPrimary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   taskTextDone: {
     textDecorationLine: 'line-through',
-    color: Colors.textTertiary,
+    color: Colors.textSecondary,
   },
   classCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     padding: Spacing.md,
-    marginBottom: Spacing.xs,
+    marginBottom: 6,
   },
   classHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  subjectIndicator: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   classTitleInfo: {
     flex: 1,
@@ -363,33 +417,30 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   classDate: {
-    fontSize: FontSizes.xs,
+    fontSize: 11,
     color: Colors.textSecondary,
     marginTop: 2,
   },
-  classNotesBox: {
+  locationTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.surfaceVariant,
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    marginTop: Spacing.sm,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+  },
+  locationTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  classNotesBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: BorderRadius.xs,
+    padding: 6,
+    marginTop: 6,
   },
   classNotesText: {
-    fontSize: FontSizes.xs,
+    fontSize: 11,
     color: Colors.textSecondary,
-    flex: 1,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.xl,
-  },
-  emptyTitle: {
-    fontSize: FontSizes.md,
-    color: Colors.textSecondary,
-    fontWeight: '700',
   },
 });

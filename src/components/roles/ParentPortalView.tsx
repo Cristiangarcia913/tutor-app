@@ -8,11 +8,13 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDatabase } from '../../hooks/useDatabase';
 import { useAuthRole } from '../../hooks/useAuthRole';
-import { Card, Badge, Button } from '../common';
+import { Card, Badge } from '../common';
+import ClassReminderAlert from '../classes/ClassReminderAlert';
 import {
   Colors,
   Spacing,
@@ -21,9 +23,9 @@ import {
   formatCurrency,
   formatDate,
   formatTime,
-  getPaymentMethodLabel,
+  getLocationLabel,
 } from '../../constants/theme';
-import type { ClassSession, Payment, Subject, AppSettings } from '../../types';
+import type { ClassSession, Subject, AppSettings } from '../../types';
 
 export default function ParentPortalView() {
   const db = useDatabase();
@@ -32,7 +34,6 @@ export default function ParentPortalView() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [classes, setClasses] = useState<ClassSession[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
@@ -48,9 +49,8 @@ export default function ParentPortalView() {
       return;
     }
     try {
-      const [classList, paymentList, subjectList, balData, sets] = await Promise.all([
+      const [classList, subjectList, balData, sets] = await Promise.all([
         db.getClassesByStudent(activeStudent.id),
-        db.getPaymentsByStudent(activeStudent.id),
         db.loadSubjects(),
         db.getStudentBalance(activeStudent.id),
         db.loadSettings(),
@@ -62,7 +62,6 @@ export default function ParentPortalView() {
       });
       setSubjects(subMap);
       setClasses(classList);
-      setPayments(paymentList);
       setBalance(balData);
       setSettings(sets);
     } catch (e) {
@@ -86,7 +85,7 @@ export default function ParentPortalView() {
     const teacherPhone = settings?.phone || '+34 600 000 000';
     const teacherName = settings?.teacherName || 'tu profesor';
     Alert.alert(
-      'Pago por Bizum',
+      'Pagar por Bizum',
       `Puedes realizar el Bizum de ${formatCurrency(balance.pending)} al teléfono:\n\n📱 ${teacherPhone}\n(${teacherName})\n\nConcepto: Clases ${activeStudent?.firstName}`,
       [{ text: 'Entendido' }]
     );
@@ -110,7 +109,9 @@ export default function ParentPortalView() {
 
   const upcomingClasses = classes
     .filter((c) => c.status === 'scheduled')
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`));
+
+  const nextUpcomingClass = upcomingClasses.length > 0 ? upcomingClasses[0] : null;
 
   const classesWithHomework = classes.filter((c) => c.homework && c.homework.trim().length > 0);
 
@@ -120,138 +121,120 @@ export default function ParentPortalView() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Header Familiar */}
+      {/* Header Familiar - Minimalista y limpio */}
       <View style={styles.welcomeCard}>
         <View style={styles.avatarCircle}>
-          <Ionicons name="people" size={24} color="#FFFFFF" />
+          <Ionicons name="people" size={20} color={Colors.primary} />
         </View>
         <View style={styles.welcomeInfo}>
           <Text style={styles.welcomeGreeting}>Portal de Familias</Text>
           <Text style={styles.welcomeCourse}>
-            Seguimiento de {activeStudent.firstName} {activeStudent.lastName}
+            {activeStudent.firstName} {activeStudent.lastName}
             {activeStudent.course ? ` • ${activeStudent.course}` : ''}
           </Text>
         </View>
       </View>
 
-      {/* Saldo y Pagos */}
+      {/* Recordatorio de Próxima Clase (con alerta y lugar destacado) */}
+      {nextUpcomingClass && (
+        <ClassReminderAlert
+          session={nextUpcomingClass}
+          student={activeStudent}
+          subject={subjects[nextUpcomingClass.subjectId]}
+          teacherName={settings?.teacherName}
+          isStudentOrParentView={true}
+        />
+      )}
+
+      {/* Estado de Pagos Simplificado (Sin total recaudado del profesor) */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="wallet-outline" size={20} color={Colors.primary} />
+          <Ionicons name="wallet-outline" size={18} color={Colors.textPrimary} />
           <Text style={styles.sectionTitle}>Estado de Pagos</Text>
         </View>
 
-        <Card style={styles.balanceCard}>
-          <View style={styles.balanceRow}>
-            <View>
-              <Text style={styles.balanceLabel}>Saldo Pendiente de Pago</Text>
-              <Text
-                style={[
-                  styles.balanceAmount,
-                  { color: balance.pending > 0 ? Colors.warning : Colors.success },
-                ]}
-              >
-                {formatCurrency(balance.pending)}
-              </Text>
-            </View>
+        {balance.pending > 0 ? (
+          <View style={styles.pendingCard}>
+            <View style={styles.pendingTop}>
+              <View>
+                <Text style={styles.pendingLabel}>Pendiente de abonar</Text>
+                <Text style={styles.pendingAmount}>{formatCurrency(balance.pending)}</Text>
+              </View>
 
-            {balance.pending > 0 && (
               <TouchableOpacity
-                style={styles.payBizumBtn}
+                style={styles.bizumBtn}
                 activeOpacity={0.8}
                 onPress={handleBizumPrompt}
               >
-                <Ionicons name="phone-portrait-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.payBizumBtnText}>Pagar con Bizum</Text>
+                <Ionicons name="phone-portrait-outline" size={15} color="#FFFFFF" />
+                <Text style={styles.bizumBtnText}>Pagar Bizum</Text>
               </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.subStatsRow}>
-            <View style={styles.subStat}>
-              <Text style={styles.subStatLabel}>Total Clases</Text>
-              <Text style={styles.subStatValue}>{classes.length}</Text>
             </View>
-            <View style={styles.subStat}>
-              <Text style={styles.subStatLabel}>Total Abonado</Text>
-              <Text style={[styles.subStatValue, { color: Colors.success }]}>
-                {formatCurrency(balance.paid)}
-              </Text>
-            </View>
+            <Text style={styles.pendingSub}>
+              Puedes abonar cómodamente por Bizum al profesor o en efectivo en la próxima clase.
+            </Text>
           </View>
-        </Card>
-
-        {/* Últimos pagos */}
-        {payments.length > 0 && (
-          <View style={styles.recentPaymentsBox}>
-            <Text style={styles.recentPaymentsTitle}>Historial de pagos recibidos:</Text>
-            {payments.slice(0, 3).map((p) => (
-              <View key={p.id} style={styles.paymentRow}>
-                <View style={styles.paymentMethodBadge}>
-                  <Ionicons
-                    name={p.method === 'bizum' ? 'phone-portrait-outline' : 'cash-outline'}
-                    size={14}
-                    color={Colors.primary}
-                  />
-                  <Text style={styles.paymentMethodText}>{getPaymentMethodLabel(p.method)}</Text>
-                </View>
-                <Text style={styles.paymentDate}>{formatDate(p.date)}</Text>
-                <Text style={styles.paymentAmount}>{formatCurrency(p.amount)}</Text>
-              </View>
-            ))}
+        ) : (
+          <View style={styles.paidOkCard}>
+            <View style={styles.paidOkIcon}>
+              <Ionicons name="checkmark-circle" size={22} color={Colors.success} />
+            </View>
+            <View style={styles.paidOkTextContainer}>
+              <Text style={styles.paidOkTitle}>Pagos al día</Text>
+              <Text style={styles.paidOkSub}>No tienes ningún recibo o clase pendiente de abonar.</Text>
+            </View>
           </View>
         )}
       </View>
 
-      {/* Tareas y Deberes mandados para casa */}
+      {/* Tareas y Deberes asignados para supervisión */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="book-outline" size={20} color={Colors.primary} />
+          <Ionicons name="book-outline" size={18} color={Colors.textPrimary} />
           <Text style={styles.sectionTitle}>Deberes Asignados para Casa</Text>
         </View>
 
         {classesWithHomework.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Ionicons name="checkmark-done-circle-outline" size={28} color={Colors.success} />
-            <Text style={styles.emptyCardTitle}>Sin tareas pendientes</Text>
-            <Text style={styles.emptyCardSub}>El alumno no tiene tareas pendientes mandadas.</Text>
-          </Card>
+          <View style={styles.emptySimpleCard}>
+            <Ionicons name="checkmark-circle-outline" size={22} color={Colors.success} />
+            <Text style={styles.emptySimpleText}>Sin deberes pendientes asignados.</Text>
+          </View>
         ) : (
           classesWithHomework.map((cls) => {
             const subject = subjects[cls.subjectId];
             return (
-              <Card key={cls.id} style={styles.taskCard}>
+              <View key={cls.id} style={styles.taskCard}>
                 <View style={styles.taskHeader}>
                   <Text style={styles.taskSubject}>{subject?.name || 'Clase particular'}</Text>
                   <Text style={styles.taskDate}>Para el {formatDate(cls.date)}</Text>
                 </View>
                 <Text style={styles.taskHomeworkText}>{cls.homework}</Text>
-              </Card>
+              </View>
             );
           })
         )}
       </View>
 
-      {/* Clases Programadas */}
+      {/* Calendario de Próximas Clases */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
-          <Text style={styles.sectionTitle}>Próximas Clases</Text>
+          <Ionicons name="calendar-outline" size={18} color={Colors.textPrimary} />
+          <Text style={styles.sectionTitle}>Horario de Clases</Text>
         </View>
 
         {upcomingClasses.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Ionicons name="calendar" size={28} color={Colors.textTertiary} />
-            <Text style={styles.emptyCardTitle}>No hay clases programadas</Text>
-            <Text style={styles.emptyCardSub}>El profesor no tiene próximas sesiones fijadas.</Text>
-          </Card>
+          <View style={styles.emptySimpleCard}>
+            <Ionicons name="calendar-outline" size={22} color={Colors.textTertiary} />
+            <Text style={styles.emptySimpleText}>No hay próximas clases programadas.</Text>
+          </View>
         ) : (
           upcomingClasses.map((cls) => {
             const subject = subjects[cls.subjectId];
+            const isOnline = cls.location === 'online';
+            const isHome = cls.location === 'domicilio';
+
             return (
-              <Card key={cls.id} style={styles.classCard}>
+              <View key={cls.id} style={styles.classCard}>
                 <View style={styles.classHeader}>
                   <View style={styles.classTitleInfo}>
                     <Text style={styles.classSubject}>{subject?.name || 'Clase Particular'}</Text>
@@ -259,7 +242,31 @@ export default function ParentPortalView() {
                       {formatDate(cls.date)} • {formatTime(cls.startTime)} - {formatTime(cls.endTime)}
                     </Text>
                   </View>
-                  <Badge text={formatCurrency(cls.totalAmount)} color={Colors.primary} backgroundColor={Colors.primaryBg} size="sm" />
+
+                  <View
+                    style={[
+                      styles.locationTag,
+                      {
+                        backgroundColor: isOnline ? '#EFF6FF' : isHome ? '#FFFBEB' : '#ECFDF5',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={isOnline ? 'videocam-outline' : isHome ? 'home-outline' : 'location-outline'}
+                      size={12}
+                      color={isOnline ? '#2563EB' : isHome ? '#D97706' : '#059669'}
+                    />
+                    <Text
+                      style={[
+                        styles.locationTagText,
+                        {
+                          color: isOnline ? '#2563EB' : isHome ? '#D97706' : '#059669',
+                        },
+                      ]}
+                    >
+                      {getLocationLabel(cls.location)}
+                    </Text>
+                  </View>
                 </View>
 
                 {cls.notes ? (
@@ -267,7 +274,7 @@ export default function ParentPortalView() {
                     <Text style={styles.classNotesText}>{cls.notes}</Text>
                   </View>
                 ) : null}
-              </Card>
+              </View>
             );
           })
         )}
@@ -279,26 +286,40 @@ export default function ParentPortalView() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F8FAFC',
   },
   content: {
-    padding: Spacing.lg,
-    paddingBottom: 60,
-    gap: Spacing.lg,
+    padding: Spacing.md,
+    paddingBottom: 70,
+    gap: Spacing.md,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+    backgroundColor: '#F8FAFC',
+  },
+  emptyTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
   welcomeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E11D48', // Rose
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.xl,
-    gap: Spacing.md,
+    backgroundColor: '#FFFFFF',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: Spacing.sm,
   },
   avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -306,126 +327,124 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeGreeting: {
-    fontSize: FontSizes.lg,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
   welcomeCourse: {
-    fontSize: FontSizes.xs,
-    color: 'rgba(255, 255, 255, 0.85)',
-    marginTop: 2,
-    fontWeight: '500',
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
   },
   section: {
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 6,
     marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: FontSizes.md,
-    fontWeight: '800',
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
     color: Colors.textPrimary,
   },
-  balanceCard: {
-    padding: Spacing.lg,
+  pendingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    padding: Spacing.md,
   },
-  balanceRow: {
+  pendingTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  balanceLabel: {
-    fontSize: FontSizes.xs,
+  pendingLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#B45309',
+    textTransform: 'uppercase',
+  },
+  pendingAmount: {
+    fontSize: FontSizes.xl,
+    fontWeight: '800',
+    color: '#D97706',
+    marginTop: 2,
+  },
+  pendingSub: {
+    fontSize: 12,
     color: Colors.textSecondary,
-    marginBottom: 2,
+    marginTop: Spacing.xs,
   },
-  balanceAmount: {
-    fontSize: FontSizes.xxl,
-    fontWeight: '900',
-  },
-  payBizumBtn: {
+  bizumBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 8,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.full,
   },
-  payBizumBtnText: {
+  bizumBtnText: {
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: FontSizes.xs,
   },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.borderLight,
-    marginVertical: Spacing.md,
-  },
-  subStatsRow: {
+  paidOkCard: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  subStat: {
     alignItems: 'center',
-  },
-  subStatLabel: {
-    fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
-    marginBottom: 2,
-  },
-  subStatValue: {
-    fontSize: FontSizes.md,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  recentPaymentsBox: {
-    backgroundColor: Colors.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#BBF7D0',
+    padding: Spacing.md,
+    gap: Spacing.sm,
   },
-  recentPaymentsTitle: {
-    fontSize: FontSizes.xs,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
-  },
-  paymentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  paidOkIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#ECFDF5',
     alignItems: 'center',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    justifyContent: 'center',
   },
-  paymentMethodBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  paidOkTextContainer: {
+    flex: 1,
   },
-  paymentMethodText: {
-    fontSize: FontSizes.xs,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  paymentDate: {
-    fontSize: FontSizes.xs,
-    color: Colors.textTertiary,
-  },
-  paymentAmount: {
+  paidOkTitle: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
-    color: Colors.success,
+    color: '#059669',
+  },
+  paidOkSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  emptySimpleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  emptySimpleText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
   },
   taskCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     padding: Spacing.md,
-    marginBottom: Spacing.xs,
+    marginBottom: 6,
   },
   taskHeader: {
     flexDirection: 'row',
@@ -436,21 +455,24 @@ const styles = StyleSheet.create({
   taskSubject: {
     fontSize: FontSizes.xs,
     fontWeight: '700',
-    color: Colors.primary,
+    color: Colors.textPrimary,
   },
   taskDate: {
-    fontSize: 10,
-    color: Colors.textTertiary,
+    fontSize: 11,
+    color: Colors.textSecondary,
   },
   taskHomeworkText: {
     fontSize: FontSizes.sm,
     color: Colors.textPrimary,
-    lineHeight: 20,
-    fontWeight: '500',
+    lineHeight: 18,
   },
   classCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     padding: Spacing.md,
-    marginBottom: Spacing.xs,
+    marginBottom: 6,
   },
   classHeader: {
     flexDirection: 'row',
@@ -466,46 +488,30 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   classDate: {
-    fontSize: FontSizes.xs,
+    fontSize: 11,
     color: Colors.textSecondary,
     marginTop: 2,
   },
+  locationTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+  },
+  locationTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   classNotesBox: {
-    backgroundColor: Colors.surfaceVariant,
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    marginTop: Spacing.sm,
+    backgroundColor: '#F8FAFC',
+    borderRadius: BorderRadius.xs,
+    padding: 6,
+    marginTop: 6,
   },
   classNotesText: {
-    fontSize: FontSizes.xs,
+    fontSize: 11,
     color: Colors.textSecondary,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.xl,
-    gap: Spacing.xs,
-  },
-  emptyCardTitle: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginTop: 4,
-  },
-  emptyCardSub: {
-    fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.xl,
-  },
-  emptyTitle: {
-    fontSize: FontSizes.md,
-    color: Colors.textSecondary,
-    fontWeight: '700',
   },
 });
