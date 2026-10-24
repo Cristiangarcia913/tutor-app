@@ -164,11 +164,21 @@ npx expo start --web
 ```
 Se abrirá automáticamente tu navegador en `http://localhost:8081` (o presiona la tecla `w` en la consola de Expo).
 
-#### Compilar y Desplegar en Producción Web:
-Para publicar la app en servicios como **Vercel**, **Netlify** o **GitHub Pages**:
+#### Despliegue en Vercel (Recomendado para tener la app 24/7 en tu iPhone):
+El repositorio ya incluye la configuración lista en `vercel.json` y el script de compilación:
+1. Ve a [vercel.com](https://vercel.com) e inicia sesión con tu cuenta de **GitHub**.
+2. Haz clic en **"Add New..."** > **"Project"** e importa el repositorio `Cristiangarcia913/tutor-app`.
+3. Deja los ajustes predeterminados (Vercel lee automáticamente `vercel.json` con `npm run build` y la carpeta `dist`).
+4. Haz clic en **"Deploy"**.
+5. En tu **iPhone**, abre la URL asignada (ej. `https://tutor-app-xxx.vercel.app`) en **Safari**.
+6. Pulsa el botón **Compartir** (icono cuadrado con flecha hacia arriba) y selecciona **"Añadir a pantalla de inicio"**.
+7. ¡Listo! TutorApp funcionará a pantalla completa como una app nativa 24/7 sin depender de tu ordenador.
+
+#### Compilar y Desplegar manualmente en Producción Web:
+Para publicar la app en cualquier otro servidor estático:
 ```bash
 # Exportar la versión web estática optimizada
-npx expo export -p web
+npm run build
 ```
 La carpeta generada `dist/` contiene el sitio web listo para subirse a cualquier hosting estático o servidor.
 
