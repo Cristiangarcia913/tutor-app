@@ -54,7 +54,7 @@ function calculateEndTime(start: string, durationMinutes: number): string {
 export default function NewClassScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ studentId?: string }>();
+  const params = useLocalSearchParams<{ studentId?: string; date?: string }>();
   const db = useDatabase();
 
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,7 @@ export default function NewClassScreen() {
   // Form fields
   const [studentId, setStudentId] = useState(params.studentId || '');
   const [subjectId, setSubjectId] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(params.date || new Date().toISOString().split('T')[0]);
   const [startTime, setStartTime] = useState('17:00');
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [rate, setRate] = useState('20');

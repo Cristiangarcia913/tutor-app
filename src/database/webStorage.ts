@@ -562,7 +562,22 @@ export const webGenerateMonthClassesForStudent = async (
   month: number
 ): Promise<ClassSession[]> => {
   const student = await webGetStudentById(studentId);
-  if (!student || !student.scheduleDays || student.scheduleDays.length === 0) {
+  if (!student) return [];
+
+  // Recoger los horarios específicos por día (o fallback a los días generales)
+  let slots: Array<{ day: number; time: string; duration?: number }> = [];
+  if (student.scheduleSlots && student.scheduleSlots.length > 0) {
+    slots = student.scheduleSlots;
+  } else if (student.scheduleDays && student.scheduleDays.length > 0) {
+    const defaultTime = student.scheduleTime || '17:00';
+    slots = student.scheduleDays.map((d) => ({
+      day: d,
+      time: defaultTime,
+      duration: student.scheduleDuration || 60,
+    }));
+  }
+
+  if (slots.length === 0) {
     return [];
   }
 
@@ -570,15 +585,8 @@ export const webGenerateMonthClassesForStudent = async (
   const subjects = await webGetAllSubjects();
   const subjectId = student.scheduleSubjectId || (subjects.length > 0 ? subjects[0].id : 'sub_matematicas');
 
-  const duration = student.scheduleDuration || 60;
+  const defaultDuration = student.scheduleDuration || 60;
   const rate = student.scheduleRate !== undefined ? student.scheduleRate : 15;
-  const startTime = student.scheduleTime || '17:00';
-
-  const [h, m] = startTime.split(':').map(Number);
-  const totalMinutes = h * 60 + (m || 0) + duration;
-  const endH = Math.floor(totalMinutes / 60) % 24;
-  const endM = totalMinutes % 60;
-  const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const newClasses: ClassSessionFormData[] = [];
@@ -588,8 +596,22 @@ export const webGenerateMonthClassesForStudent = async (
     const dateObj = new Date(year, month - 1, day);
     const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay();
 
-    if (student.scheduleDays.includes(dayOfWeek)) {
-      const alreadyExists = existingClasses.some((c) => c.date === dateStr && c.status !== 'cancelled');
+    const daySlots = slots.filter((s) => s.day === dayOfWeek);
+
+    for (const slot of daySlots) {
+      const startTime = slot.time || '17:00';
+      const duration = slot.duration || defaultDuration;
+
+      const [h, m] = startTime.split(':').map(Number);
+      const totalMinutes = (isNaN(h) ? 17 : h) * 60 + (isNaN(m) ? 0 : m) + duration;
+      const endH = Math.floor(totalMinutes / 60) % 24;
+      const endM = totalMinutes % 60;
+      const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+      const alreadyExists = existingClasses.some(
+        (c) => c.date === dateStr && c.startTime === startTime && c.status !== 'cancelled'
+      );
+
       if (!alreadyExists) {
         newClasses.push({
           studentId: student.id,

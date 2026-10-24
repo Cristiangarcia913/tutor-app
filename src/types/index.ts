@@ -6,6 +6,12 @@
 // -----------------------------------------------------------------------------
 // Student
 // -----------------------------------------------------------------------------
+export interface ScheduleSlot {
+  day: number; // 1 = Lunes, 2 = Martes, ..., 7 = Domingo
+  time: string; // ej: "17:00"
+  duration?: number; // minutos (opcional, ej: 60)
+}
+
 export interface Student {
   id: string;
   firstName: string;
@@ -22,6 +28,7 @@ export interface Student {
   active: boolean;
   avatarColor: string;
   // Horario semanal asignado al alumno:
+  scheduleSlots?: ScheduleSlot[]; // Horario semanal con hora específica para cada día (ej: Lunes 16:30, Miércoles 18:00)
   scheduleDays?: number[]; // [1, 3] = Lunes y Miércoles (1=Lunes, 7=Domingo)
   scheduleTime?: string; // ej: "17:00"
   scheduleDuration?: number; // minutos (ej: 60)

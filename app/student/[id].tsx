@@ -310,16 +310,26 @@ export default function StudentDetailScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.scheduleCardTitle}>Horario Semanal Asignado</Text>
               <Text style={styles.scheduleCardSub}>
-                {student.scheduleDays && student.scheduleDays.length > 0
-                  ? `Clases los ${student.scheduleDays
-                      .map((d) => ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'][d - 1])
-                      .join(' y ')} a las ${student.scheduleTime || '17:00'} (${student.scheduleDuration || 60}m)`
-                  : 'Sin días semanales fijos asignados aún.'}
+                {(() => {
+                  const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+                  if (student.scheduleSlots && student.scheduleSlots.length > 0) {
+                    return student.scheduleSlots
+                      .map((s) => `${dayNames[s.day - 1]} a las ${s.time}`)
+                      .join('  •  ') + ` (${student.scheduleDuration || 60}m)`;
+                  }
+                  if (student.scheduleDays && student.scheduleDays.length > 0) {
+                    return `Clases los ${student.scheduleDays
+                      .map((d) => dayNames[d - 1])
+                      .join(' y ')} a las ${student.scheduleTime || '17:00'} (${student.scheduleDuration || 60}m)`;
+                  }
+                  return 'Sin días semanales fijos asignados aún.';
+                })()}
               </Text>
             </View>
           </View>
 
-          {student.scheduleDays && student.scheduleDays.length > 0 ? (
+          {((student.scheduleSlots && student.scheduleSlots.length > 0) ||
+            (student.scheduleDays && student.scheduleDays.length > 0)) ? (
             <View style={styles.scheduleActionsRow}>
               <View style={styles.scheduleRateBadge}>
                 <Text style={styles.scheduleRateBadgeText}>

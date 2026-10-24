@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
@@ -12,12 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDatabase } from '../../src/hooks/useDatabase';
-import {
-  SearchBar,
-  FloatingActionButton,
-  FilterChip,
-  EmptyState,
-} from '../../src/components/common';
+import { FloatingActionButton, EmptyState } from '../../src/components/common';
 import ClassCard from '../../src/components/classes/ClassCard';
 import {
   Colors,
@@ -30,11 +25,22 @@ import {
 import type { ClassSession, Student, Subject } from '../../src/types';
 
 type PaymentFilterType = 'all' | 'paid' | 'pending' | 'cancelled';
+type ViewModeType = 'calendar' | 'list';
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
+
+const WEEK_DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const WEEK_COL_HEADERS = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
+
+interface DayGridItem {
+  dayNum: number;
+  dateStr: string;
+  classes: ClassSession[];
+  allPaid: boolean;
+}
 
 export default function ClassesScreen() {
   const insets = useSafeAreaInsets();
@@ -47,10 +53,21 @@ export default function ClassesScreen() {
   const [students, setStudents] = useState<Record<string, Student>>({});
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
 
-  // Monthly navigation state
+  // View state
+  const [viewMode, setViewMode] = useState<ViewModeType>('calendar');
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [searchQuery, setSearchQuery] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilterType>('all');
+
+  // Format today's date string YYYY-MM-DD
+  const todayObj = useMemo(() => new Date(), []);
+  const todayStr = useMemo(() => {
+    const y = todayObj.getFullYear();
+    const m = String(todayObj.getMonth() + 1).padStart(2, '0');
+    const d = String(todayObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, [todayObj]);
+
+  const [selectedDay, setSelectedDay] = useState<string>(() => todayStr);
 
   const selectedYear = selectedDate.getFullYear();
   const selectedMonth = selectedDate.getMonth(); // 0-indexed
@@ -102,15 +119,31 @@ export default function ClassesScreen() {
   }, [loadData]);
 
   const handlePrevMonth = () => {
-    setSelectedDate(new Date(selectedYear, selectedMonth - 1, 1));
+    const newDate = new Date(selectedYear, selectedMonth - 1, 1);
+    setSelectedDate(newDate);
+    const mStr = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
+    if (todayStr.startsWith(mStr)) {
+      setSelectedDay(todayStr);
+    } else {
+      setSelectedDay(`${mStr}-01`);
+    }
   };
 
   const handleNextMonth = () => {
-    setSelectedDate(new Date(selectedYear, selectedMonth + 1, 1));
+    const newDate = new Date(selectedYear, selectedMonth + 1, 1);
+    setSelectedDate(newDate);
+    const mStr = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
+    if (todayStr.startsWith(mStr)) {
+      setSelectedDay(todayStr);
+    } else {
+      setSelectedDay(`${mStr}-01`);
+    }
   };
 
   const handleToday = () => {
-    setSelectedDate(new Date());
+    const now = new Date();
+    setSelectedDate(now);
+    setSelectedDay(todayStr);
   };
 
   // Toggle paid status for a session
@@ -160,39 +193,103 @@ export default function ClassesScreen() {
     };
   }, [monthClasses]);
 
-  // Filtered classes according to payment filter and search query
-  const filteredClasses = useMemo(() => {
-    return monthClasses.filter((item) => {
-      // Payment & status filter
-      if (paymentFilter === 'paid' && (!item.isPaid || item.status === 'cancelled')) {
-        return false;
-      }
-      if (paymentFilter === 'pending' && (item.isPaid || item.status === 'cancelled')) {
-        return false;
-      }
-      if (paymentFilter === 'cancelled' && item.status !== 'cancelled') {
-        return false;
+  // Calendar Weeks calculation for square grid (Monday-first)
+  const calendarWeeks = useMemo(() => {
+    const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    const firstDayDate = new Date(selectedYear, selectedMonth, 1);
+    // 0 = Sunday, 1 = Monday. Shift so Monday = 0, Sunday = 6
+    const startCol = (firstDayDate.getDay() + 6) % 7;
+
+    const weeks: (DayGridItem | null)[][] = [];
+    let currentWeek: (DayGridItem | null)[] = [];
+
+    // Leading padding for previous month days
+    for (let i = 0; i < startCol; i++) {
+      currentWeek.push(null);
+    }
+
+    // Days in current month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      let dayClasses = monthClasses.filter((c) => c.date === dateStr);
+
+      if (paymentFilter === 'paid') {
+        dayClasses = dayClasses.filter((c) => c.isPaid && c.status !== 'cancelled');
+      } else if (paymentFilter === 'pending') {
+        dayClasses = dayClasses.filter((c) => !c.isPaid && c.status !== 'cancelled');
+      } else if (paymentFilter === 'cancelled') {
+        dayClasses = dayClasses.filter((c) => c.status === 'cancelled');
       }
 
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const student = students[item.studentId];
-        const studentName = student
-          ? `${student.firstName} ${student.lastName}`.toLowerCase()
-          : '';
-        const subject = subjects[item.subjectId];
-        const subjectName = subject ? subject.name.toLowerCase() : '';
-        return studentName.includes(q) || subjectName.includes(q);
-      }
+      // Sort classes by time
+      dayClasses.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-      return true;
-    }).sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
-  }, [monthClasses, paymentFilter, searchQuery, students, subjects]);
+      const activeClasses = dayClasses.filter((c) => c.status !== 'cancelled');
+      const allPaid = activeClasses.length > 0 && activeClasses.every((c) => c.isPaid);
+
+      currentWeek.push({
+        dayNum: day,
+        dateStr,
+        classes: dayClasses,
+        allPaid,
+      });
+
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+
+    // Trailing padding to finish last week
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) {
+        currentWeek.push(null);
+      }
+      weeks.push(currentWeek);
+    }
+
+    return weeks;
+  }, [selectedYear, selectedMonth, monthClasses, paymentFilter]);
+
+  // Classes for the currently selected day
+  const selectedDayClasses = useMemo(() => {
+    let list = monthClasses.filter((c) => c.date === selectedDay);
+    if (paymentFilter === 'paid') {
+      list = list.filter((c) => c.isPaid && c.status !== 'cancelled');
+    } else if (paymentFilter === 'pending') {
+      list = list.filter((c) => !c.isPaid && c.status !== 'cancelled');
+    } else if (paymentFilter === 'cancelled') {
+      list = list.filter((c) => c.status === 'cancelled');
+    }
+    return list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [monthClasses, selectedDay, paymentFilter]);
+
+  // Formatted title for the selected day agenda
+  const selectedDayLabel = useMemo(() => {
+    if (!selectedDay) return '';
+    const [y, m, d] = selectedDay.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dayName = WEEK_DAY_NAMES[dateObj.getDay()];
+    const monthName = MONTH_NAMES[m - 1];
+    return `${dayName}, ${d} de ${monthName}`;
+  }, [selectedDay]);
+
+  // All filtered classes in the month for list view
+  const allFilteredMonthClasses = useMemo(() => {
+    let list = [...monthClasses];
+    if (paymentFilter === 'paid') {
+      list = list.filter((c) => c.isPaid && c.status !== 'cancelled');
+    } else if (paymentFilter === 'pending') {
+      list = list.filter((c) => !c.isPaid && c.status !== 'cancelled');
+    } else if (paymentFilter === 'cancelled') {
+      list = list.filter((c) => c.status === 'cancelled');
+    }
+    return list.sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+  }, [monthClasses, paymentFilter]);
 
   const filterOptions: { key: PaymentFilterType; label: string; count?: number; color?: string }[] = [
     { key: 'all', label: 'Todas', count: monthClasses.length },
-    { key: 'paid', label: '✓ Pagadas (Verdes)', count: monthStats.paidCount, color: '#059669' },
+    { key: 'paid', label: '✓ Pagadas', count: monthStats.paidCount, color: '#059669' },
     { key: 'pending', label: '⏳ Pendientes', count: monthStats.pendingCount, color: '#D97706' },
     { key: 'cancelled', label: '❌ Canceladas', count: monthClasses.filter((c) => c.status === 'cancelled').length, color: Colors.danger },
   ];
@@ -204,6 +301,8 @@ export default function ClassesScreen() {
       </View>
     );
   }
+
+  const isCurrentMonth = selectedMonthStr === `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}`;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -234,9 +333,10 @@ export default function ClassesScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Quick 'Hoy' jump button if not current month */}
-        {selectedMonthStr !== `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}` && (
+        {/* Quick 'Mes Actual' jump button if viewing another month */}
+        {!isCurrentMonth && (
           <TouchableOpacity style={styles.todayButton} onPress={handleToday}>
+            <Ionicons name="today-outline" size={13} color={Colors.primary} />
             <Text style={styles.todayButtonText}>Ir a Mes Actual</Text>
           </TouchableOpacity>
         )}
@@ -273,27 +373,59 @@ export default function ClassesScreen() {
         </View>
       </View>
 
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Buscar alumno o materia..."
-        />
+      {/* View Mode Toggle (Calendario Cuadrícula vs Lista Mensual) */}
+      <View style={styles.viewModeRow}>
+        <View style={styles.viewModeSegment}>
+          <TouchableOpacity
+            style={[styles.segmentBtn, viewMode === 'calendar' && styles.segmentBtnActive]}
+            onPress={() => setViewMode('calendar')}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="calendar"
+              size={15}
+              color={viewMode === 'calendar' ? Colors.primary : Colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.segmentBtnText,
+                viewMode === 'calendar' && styles.segmentBtnTextActive,
+              ]}
+            >
+              Calendario
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.segmentBtn, viewMode === 'list' && styles.segmentBtnActive]}
+            onPress={() => setViewMode('list')}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="list"
+              size={15}
+              color={viewMode === 'list' ? Colors.primary : Colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.segmentBtnText,
+                viewMode === 'list' && styles.segmentBtnTextActive,
+              ]}
+            >
+              Lista Mensual
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filter Tabs */}
       <View style={styles.filterTabsContainer}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={filterOptions}
-          keyExtractor={(item) => item.key}
-          contentContainerStyle={styles.filterTabsList}
-          renderItem={({ item }) => {
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterTabsList}>
+          {filterOptions.map((item) => {
             const isSelected = paymentFilter === item.key;
             return (
               <TouchableOpacity
+                key={item.key}
                 onPress={() => setPaymentFilter(item.key)}
                 style={[
                   styles.filterTab,
@@ -313,45 +445,228 @@ export default function ClassesScreen() {
                 </Text>
               </TouchableOpacity>
             );
-          }}
-        />
+          })}
+        </ScrollView>
       </View>
 
-      {/* Classes List */}
-      <FlatList
-        data={filteredClasses}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
+      {/* Main Content Area */}
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        renderItem={({ item }) => (
-          <ClassCard
-            session={item}
-            student={students[item.studentId]}
-            subject={subjects[item.subjectId]}
-            onPress={() => router.push(`/class/${item.id}`)}
-            onTogglePaid={() => handleTogglePaid(item)}
-            showStudentName={true}
-          />
+      >
+        {viewMode === 'calendar' ? (
+          <>
+            {/* CALENDARIO MENSUAL CON CUADRADOS */}
+            <View style={styles.calendarCard}>
+              {/* Encabezado Días de la semana */}
+              <View style={styles.weekDaysHeader}>
+                {WEEK_COL_HEADERS.map((col, idx) => (
+                  <View key={idx} style={styles.weekDayCell}>
+                    <Text
+                      style={[
+                        styles.weekDayHeaderLabel,
+                        (idx === 5 || idx === 6) && styles.weekDayHeaderWeekend,
+                      ]}
+                    >
+                      {col}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Matriz de semanas del calendario */}
+              <View style={styles.gridContainer}>
+                {calendarWeeks.map((week, wIdx) => (
+                  <View key={`week-${wIdx}`} style={styles.weekRow}>
+                    {week.map((dayItem, dIdx) => {
+                      if (!dayItem) {
+                        return <View key={`empty-${wIdx}-${dIdx}`} style={styles.emptySquare} />;
+                      }
+
+                      const isSelected = dayItem.dateStr === selectedDay;
+                      const isToday = dayItem.dateStr === todayStr;
+                      const hasClasses = dayItem.classes.length > 0;
+
+                      return (
+                        <TouchableOpacity
+                          key={dayItem.dateStr}
+                          activeOpacity={0.7}
+                          onPress={() => setSelectedDay(dayItem.dateStr)}
+                          style={[
+                            styles.daySquare,
+                            hasClasses && styles.daySquareHasClasses,
+                            isSelected && styles.daySquareSelected,
+                            isToday && !isSelected && styles.daySquareToday,
+                          ]}
+                        >
+                          {/* Top del cuadrado: Número de día y badge/punto de estado */}
+                          <View style={styles.daySquareHeader}>
+                            <View
+                              style={[
+                                styles.dayNumberCircle,
+                                isToday && styles.dayNumberCircleToday,
+                                isSelected && styles.dayNumberCircleSelected,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.dayNumberText,
+                                  isToday && styles.dayNumberTextToday,
+                                  isSelected && styles.dayNumberTextSelected,
+                                ]}
+                              >
+                                {dayItem.dayNum}
+                              </Text>
+                            </View>
+
+                            {hasClasses && (
+                              <View
+                                style={[
+                                  styles.dayDotIndicator,
+                                  dayItem.allPaid ? styles.dotPaid : styles.dotPending,
+                                ]}
+                              />
+                            )}
+                          </View>
+
+                          {/* Clases dentro del cuadrado del día */}
+                          <View style={styles.daySquareContent}>
+                            {dayItem.classes.slice(0, 2).map((session) => {
+                              const student = students[session.studentId];
+                              const shortName = student ? student.firstName : 'Clase';
+                              const isPaid = session.isPaid;
+                              const isCancelled = session.status === 'cancelled';
+
+                              return (
+                                <View
+                                  key={session.id}
+                                  style={[
+                                    styles.squareClassChip,
+                                    isPaid && styles.squareClassChipPaid,
+                                    isCancelled && styles.squareClassChipCancelled,
+                                  ]}
+                                >
+                                  <Text
+                                    numberOfLines={1}
+                                    style={[
+                                      styles.squareClassChipText,
+                                      isPaid && styles.squareClassChipTextPaid,
+                                      isCancelled && styles.squareClassChipTextCancelled,
+                                    ]}
+                                  >
+                                    {isPaid ? '✓ ' : ''}{session.startTime} {shortName}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+
+                            {dayItem.classes.length > 2 && (
+                              <Text style={styles.squareMoreClassesText}>
+                                +{dayItem.classes.length - 2} más
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* SECCIÓN DETALLE DEL DÍA SELECCIONADO */}
+            <View style={styles.selectedDaySection}>
+              <View style={styles.selectedDayHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.selectedDayTitle}>{selectedDayLabel}</Text>
+                  <Text style={styles.selectedDaySubtitle}>
+                    {selectedDayClasses.length === 0
+                      ? 'Sin clases en esta fecha'
+                      : `${selectedDayClasses.length} ${selectedDayClasses.length === 1 ? 'clase programada' : 'clases programadas'}`}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.addDayClassBtn}
+                  onPress={() => router.push(`/class/new?date=${selectedDay}`)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add" size={16} color="#FFFFFF" />
+                  <Text style={styles.addDayClassBtnText}>Nueva Clase</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Lista de clases del día seleccionado */}
+              {selectedDayClasses.length > 0 ? (
+                selectedDayClasses.map((session) => (
+                  <ClassCard
+                    key={session.id}
+                    session={session}
+                    student={students[session.studentId]}
+                    subject={subjects[session.subjectId]}
+                    onPress={() => router.push(`/class/${session.id}`)}
+                    onTogglePaid={() => handleTogglePaid(session)}
+                    showStudentName={true}
+                  />
+                ))
+              ) : (
+                <View style={styles.emptyDayContainer}>
+                  <Ionicons name="calendar-outline" size={36} color={Colors.textTertiary} />
+                  <Text style={styles.emptyDayText}>
+                    No tienes clases programadas para el {selectedDayLabel}.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.emptyDayActionBtn}
+                    onPress={() => router.push(`/class/new?date=${selectedDay}`)}
+                  >
+                    <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.emptyDayActionBtnText}>
+                      Programar clase para este día
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </>
+        ) : (
+          /* VISTA LISTA MENSUAL */
+          <View style={styles.listViewContainer}>
+            <View style={styles.listHeaderRow}>
+              <Text style={styles.listSectionTitle}>
+                Todas las clases de {selectedMonthLabel} ({allFilteredMonthClasses.length})
+              </Text>
+            </View>
+
+            {allFilteredMonthClasses.length > 0 ? (
+              allFilteredMonthClasses.map((item) => (
+                <ClassCard
+                  key={item.id}
+                  session={item}
+                  student={students[item.studentId]}
+                  subject={subjects[item.subjectId]}
+                  onPress={() => router.push(`/class/${item.id}`)}
+                  onTogglePaid={() => handleTogglePaid(item)}
+                  showStudentName={true}
+                />
+              ))
+            ) : (
+              <EmptyState
+                icon="calendar-outline"
+                title="Sin clases este mes"
+                description={`No tienes clases registradas con el filtro seleccionado para ${selectedMonthLabel}.`}
+                actionLabel="Programar Nueva Clase"
+                onAction={() => router.push('/class/new')}
+              />
+            )}
+          </View>
         )}
-        ListEmptyComponent={
-          <EmptyState
-            icon="calendar-outline"
-            title="Sin clases este mes"
-            description={
-              searchQuery
-                ? 'No se encontraron clases que coincidan con la búsqueda.'
-                : `No tienes clases registradas para ${selectedMonthLabel}.`
-            }
-            actionLabel="Programar Nueva Clase"
-            onAction={() => router.push('/class/new')}
-          />
-        }
-      />
+      </ScrollView>
 
       {/* Floating Action Button */}
       <FloatingActionButton
         icon="add"
-        onPress={() => router.push('/class/new')}
+        onPress={() => router.push(selectedDay ? `/class/new?date=${selectedDay}` : '/class/new')}
       />
     </View>
   );
@@ -364,32 +679,26 @@ const styles = StyleSheet.create({
   },
   centered: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: Colors.background,
   },
   header: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.xs,
+    backgroundColor: Colors.surface,
   },
   monthSelectorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.surface,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadows.sm,
   },
   navArrowButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -397,23 +706,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   monthTitle: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.xl,
     fontWeight: '800',
     color: Colors.text,
   },
   monthSubtitle: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
-    fontWeight: '500',
     marginTop: 2,
   },
   todayButton: {
     alignSelf: 'center',
-    marginTop: 6,
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.primaryBg,
+    marginTop: 6,
   },
   todayButtonText: {
     fontSize: 11,
@@ -422,22 +733,34 @@ const styles = StyleSheet.create({
   },
   statsSummaryCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    marginHorizontal: Spacing.lg,
+    marginHorizontal: Spacing.md,
     marginTop: Spacing.sm,
     marginBottom: Spacing.xs,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    borderColor: Colors.border,
     ...Shadows.sm,
   },
   statBox: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: '75%',
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   statLabelRow: {
     flexDirection: 'row',
@@ -449,84 +772,346 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 2,
-  },
   statValueTotal: {
     fontSize: FontSizes.md,
     fontWeight: '800',
     color: Colors.text,
+    marginTop: 2,
   },
   statValuePaid: {
     fontSize: FontSizes.md,
     fontWeight: '800',
-    color: '#059669', // Verde
+    color: '#059669',
+    marginTop: 2,
   },
   statValuePending: {
     fontSize: FontSizes.md,
     fontWeight: '800',
-    color: '#D97706', // Ámbar
+    color: '#D97706',
+    marginTop: 2,
   },
   statSubText: {
     fontSize: 10,
     color: Colors.textTertiary,
-    marginTop: 2,
+    marginTop: 1,
   },
   statSubTextPaid: {
     fontSize: 10,
     color: '#047857',
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 1,
   },
   statSubTextPending: {
     fontSize: 10,
     color: '#B45309',
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 1,
   },
-  statDivider: {
-    width: 1,
-    height: 34,
-    backgroundColor: Colors.borderLight,
+  viewModeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.xs,
   },
-  searchContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
+  viewModeSegment: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surfaceVariant,
+    padding: 3,
+    borderRadius: BorderRadius.full,
+    width: '100%',
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  segmentBtnActive: {
+    backgroundColor: Colors.surface,
+    ...Shadows.sm,
+  },
+  segmentBtnText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  segmentBtnTextActive: {
+    color: Colors.primary,
+    fontWeight: '700',
   },
   filterTabsContainer: {
-    paddingVertical: Spacing.xs,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
   },
   filterTabsList: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    gap: 6,
   },
   filterTab: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
   },
   filterTabSelected: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.primaryBg,
     borderColor: Colors.primary,
   },
   filterTabText: {
-    fontSize: FontSizes.xs,
+    fontSize: 11,
     fontWeight: '600',
     color: Colors.textSecondary,
   },
   filterTabTextSelected: {
-    color: '#FFFFFF',
+    color: Colors.primary,
     fontWeight: '700',
   },
-  listContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xs,
-    paddingBottom: 90,
+  scrollArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: 100,
+  },
+
+  /* CALENDARIO MENSUAL CUADRICULA */
+  calendarCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 6,
+    marginTop: 4,
+    ...Shadows.sm,
+  },
+  weekDaysHeader: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 4,
+    marginBottom: 4,
+  },
+  weekDayCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekDayHeaderLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  weekDayHeaderWeekend: {
+    color: '#94A3B8',
+  },
+  gridContainer: {
+    gap: 4,
+  },
+  weekRow: {
+    flexDirection: 'row',
+    gap: 3,
+  },
+  emptySquare: {
+    flex: 1,
+    minHeight: 74,
+    backgroundColor: 'transparent',
+  },
+  daySquare: {
+    flex: 1,
+    minHeight: 74,
+    backgroundColor: '#FAFAFA',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 3,
+    justifyContent: 'flex-start',
+  },
+  daySquareHasClasses: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#CBD5E1',
+  },
+  daySquareSelected: {
+    borderColor: Colors.primary,
+    borderWidth: 2,
+    backgroundColor: '#EEF2FF',
+    ...Shadows.sm,
+  },
+  daySquareToday: {
+    borderColor: '#93C5FD',
+    backgroundColor: '#F0F9FF',
+  },
+  daySquareHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  dayNumberCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayNumberCircleToday: {
+    backgroundColor: Colors.primary,
+  },
+  dayNumberCircleSelected: {
+    backgroundColor: Colors.primaryDark,
+  },
+  dayNumberText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  dayNumberTextToday: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  dayNumberTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  dayDotIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  dotPaid: {
+    backgroundColor: '#10B981',
+  },
+  dotPending: {
+    backgroundColor: '#F59E0B',
+  },
+  daySquareContent: {
+    flex: 1,
+    gap: 2,
+    marginTop: 1,
+  },
+  squareClassChip: {
+    borderRadius: 3,
+    paddingHorizontal: 2,
+    paddingVertical: 1,
+    backgroundColor: '#E0E7FF',
+    borderWidth: 0.5,
+    borderColor: '#C7D2FE',
+  },
+  squareClassChipPaid: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  squareClassChipCancelled: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+  },
+  squareClassChipText: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#3730A3',
+  },
+  squareClassChipTextPaid: {
+    color: '#15803D',
+  },
+  squareClassChipTextCancelled: {
+    color: '#B91C1C',
+    textDecorationLine: 'line-through',
+  },
+  squareMoreClassesText: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    textAlign: 'center',
+    marginTop: 1,
+  },
+
+  /* SECCION AGENDA DEL DIA SELECCIONADO */
+  selectedDaySection: {
+    marginTop: Spacing.md,
+  },
+  selectedDayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  selectedDayTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '800',
+    color: Colors.text,
+  },
+  selectedDaySubtitle: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  addDayClassBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  addDayClassBtnText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  emptyDayContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginTop: Spacing.xs,
+  },
+  emptyDayText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  emptyDayActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primaryBg,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+  },
+  emptyDayActionBtnText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+
+  /* VISTA LISTA MENSUAL */
+  listViewContainer: {
+    marginTop: Spacing.xs,
+  },
+  listHeaderRow: {
+    marginBottom: Spacing.sm,
+  },
+  listSectionTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '800',
+    color: Colors.text,
   },
 });

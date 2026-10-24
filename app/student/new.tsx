@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -17,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useDatabase } from '../../src/hooks/useDatabase';
 import { Input, Button } from '../../src/components/common';
 import { Colors, Spacing, FontSizes, BorderRadius, Shadows } from '../../src/constants/theme';
-import type { StudentFormData } from '../../src/types';
+import type { StudentFormData, ScheduleSlot } from '../../src/types';
 
 const DAYS = [
   { id: 1, label: 'L', name: 'Lunes' },
@@ -51,9 +52,11 @@ export default function NewStudentScreen() {
   const [notes, setNotes] = useState('');
   const [active, setActive] = useState(true);
 
-  // Horario semanal asignado
-  const [scheduleDays, setScheduleDays] = useState<number[]>([1, 3]); // Lunes y Miércoles por defecto
-  const [scheduleTime, setScheduleTime] = useState('17:00');
+  // Horario semanal asignado (slots por día con su propia hora)
+  const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([
+    { day: 1, time: '17:00' },
+    { day: 3, time: '17:00' },
+  ]);
   const [scheduleDuration, setScheduleDuration] = useState(60);
   const [scheduleRate, setScheduleRate] = useState('15');
   const [autoGenerateMonth, setAutoGenerateMonth] = useState(true);
@@ -62,8 +65,20 @@ export default function NewStudentScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const toggleDay = (dayId: number) => {
-    setScheduleDays((prev) =>
-      prev.includes(dayId) ? prev.filter((d) => d !== dayId) : [...prev, dayId].sort()
+    setScheduleSlots((prev) => {
+      const exists = prev.some((s) => s.day === dayId);
+      if (exists) {
+        return prev.filter((s) => s.day !== dayId);
+      } else {
+        const lastTime = prev.length > 0 ? prev[prev.length - 1].time : '17:00';
+        return [...prev, { day: dayId, time: lastTime }].sort((a, b) => a.day - b.day);
+      }
+    });
+  };
+
+  const updateSlotTime = (dayId: number, newTime: string) => {
+    setScheduleSlots((prev) =>
+      prev.map((s) => (s.day === dayId ? { ...s, time: newTime } : s))
     );
   };
 
@@ -78,6 +93,7 @@ export default function NewStudentScreen() {
     if (!validate()) return;
     setSaving(true);
     try {
+      const scheduleDays = scheduleSlots.map((s) => s.day);
       const data: StudentFormData = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -89,8 +105,9 @@ export default function NewStudentScreen() {
         email: '',
         notes: notes.trim(),
         active,
+        scheduleSlots,
         scheduleDays,
-        scheduleTime: scheduleTime.trim() || '17:00',
+        scheduleTime: scheduleSlots[0]?.time || '17:00',
         scheduleDuration,
         scheduleRate: parseFloat(scheduleRate) || 15,
       };
@@ -98,7 +115,7 @@ export default function NewStudentScreen() {
       const created = await createStudent(data);
 
       // Auto-generar clases si se eligió la opción y hay días asignados
-      if (autoGenerateMonth && scheduleDays.length > 0) {
+      if (autoGenerateMonth && scheduleSlots.length > 0) {
         const now = new Date();
         await generateMonthClassesForStudent(created.id, now.getFullYear(), now.getMonth() + 1);
       }
@@ -214,7 +231,7 @@ export default function NewStudentScreen() {
           <Text style={styles.scheduleFieldLabel}>Días de clase en la semana:</Text>
           <View style={styles.daysRow}>
             {DAYS.map((d) => {
-              const isSelected = scheduleDays.includes(d.id);
+              const isSelected = scheduleSlots.some((s) => s.day === d.id);
               return (
                 <TouchableOpacity
                   key={d.id}
@@ -230,31 +247,74 @@ export default function NewStudentScreen() {
             })}
           </View>
           <Text style={styles.daysHelpText}>
-            {scheduleDays.length === 0
-              ? 'Ningún día seleccionado'
-              : `Clases los: ${DAYS.filter((d) => scheduleDays.includes(d.id)).map((d) => d.name).join(', ')}`}
+            {scheduleSlots.length === 0
+              ? 'Toca los días que dará clase el alumno'
+              : `Clases los: ${DAYS.filter((d) => scheduleSlots.some((s) => s.day === d.id)).map((d) => d.name).join(', ')}`}
           </Text>
 
-          {/* Hora de inicio y chips rápidos */}
-          <Input
-            label="Hora de inicio (HH:mm)"
-            value={scheduleTime}
-            onChangeText={setScheduleTime}
-            placeholder="17:00"
-          />
-          <View style={styles.quickHoursRow}>
-            {COMMON_HOURS.map((h) => (
-              <TouchableOpacity
-                key={h}
-                onPress={() => setScheduleTime(h)}
-                style={[styles.quickHourChip, scheduleTime === h && styles.quickHourChipSelected]}
-              >
-                <Text style={[styles.quickHourText, scheduleTime === h && styles.quickHourTextSelected]}>
-                  {h}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* Horario específico por día seleccionado */}
+          {scheduleSlots.length > 0 ? (
+            <View style={styles.slotsContainer}>
+              <Text style={styles.scheduleFieldLabel}>Hora para cada día (pueden ser distintas):</Text>
+              {scheduleSlots.map((slot) => {
+                const dayObj = DAYS.find((d) => d.id === slot.day);
+                return (
+                  <View key={slot.day} style={styles.slotCard}>
+                    <View style={styles.slotCardHeader}>
+                      <View style={styles.slotBadge}>
+                        <Text style={styles.slotBadgeText}>{dayObj?.label}</Text>
+                      </View>
+                      <Text style={styles.slotDayName}>{dayObj?.name}</Text>
+                      <View style={styles.slotTimeInputContainer}>
+                        <Ionicons name="time-outline" size={16} color={Colors.primary} />
+                        <TextInput
+                          style={styles.slotTimeInput}
+                          value={slot.time}
+                          onChangeText={(val) => updateSlotTime(slot.day, val)}
+                          placeholder="17:00"
+                          placeholderTextColor={Colors.textTertiary}
+                          maxLength={5}
+                        />
+                      </View>
+                    </View>
+
+                    {/* Chips rápidos de hora para este día específico */}
+                    <View style={styles.quickHoursRow}>
+                      {COMMON_HOURS.map((h) => {
+                        const isSelectedHour = slot.time === h;
+                        return (
+                          <TouchableOpacity
+                            key={h}
+                            onPress={() => updateSlotTime(slot.day, h)}
+                            style={[
+                              styles.quickHourChip,
+                              isSelectedHour && styles.quickHourChipSelected,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.quickHourText,
+                                isSelectedHour && styles.quickHourTextSelected,
+                              ]}
+                            >
+                              {h}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.noSlotsNotice}>
+              <Ionicons name="information-circle-outline" size={18} color={Colors.textTertiary} />
+              <Text style={styles.noSlotsText}>
+                Selecciona al menos un día arriba para configurar el horario.
+              </Text>
+            </View>
+          )}
 
           {/* Duración */}
           <Text style={[styles.scheduleFieldLabel, { marginTop: Spacing.sm }]}>Duración de la sesión:</Text>
@@ -453,12 +513,82 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: Spacing.sm,
   },
+  slotsContainer: {
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
+    gap: 10,
+  },
+  slotCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  slotCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  slotBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  slotBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  slotDayName: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  slotTimeInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  slotTimeInput: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+    width: 52,
+    textAlign: 'center',
+    padding: 0,
+  },
+  noSlotsNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F1F5F9',
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+  },
+  noSlotsText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
   quickHoursRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: -Spacing.xs,
-    marginBottom: Spacing.sm,
+    marginTop: 4,
+    marginBottom: 2,
   },
   quickHourChip: {
     paddingHorizontal: 10,
