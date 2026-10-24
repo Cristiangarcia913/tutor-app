@@ -353,9 +353,18 @@ export const webUpdateStudent = async (
 };
 
 export const webDeleteStudent = async (id: string): Promise<void> => {
+  // 1. Eliminar al alumno
   const list = await webGetAllStudents();
   const filtered = list.filter((s) => s.id !== id);
   storage.set('tutorapp_students', filtered);
+
+  // 2. Eliminar todas sus clases en cascada
+  const classes = storage.get<ClassSession[]>('tutorapp_classes', INITIAL_CLASSES);
+  storage.set('tutorapp_classes', classes.filter((c) => c.studentId !== id));
+
+  // 3. Eliminar todos sus cobros / pagos en cascada
+  const payments = storage.get<Payment[]>('tutorapp_payments', INITIAL_PAYMENTS);
+  storage.set('tutorapp_payments', payments.filter((p) => p.studentId !== id));
 };
 
 export const webGetAllSubjects = async (activeOnly: boolean = false): Promise<Subject[]> => {
@@ -401,6 +410,15 @@ export const webDeleteSubject = async (id: string): Promise<void> => {
 
 export const webGetAllClasses = async (filter?: ClassFilter): Promise<ClassSession[]> => {
   let list = storage.get<ClassSession[]>('tutorapp_classes', INITIAL_CLASSES);
+
+  // Limpieza automática de clases huérfanas si el alumno fue eliminado
+  const students = storage.get<Student[]>('tutorapp_students', INITIAL_STUDENTS);
+  const studentIds = new Set(students.map((s) => s.id));
+  if (list.some((c) => !studentIds.has(c.studentId))) {
+    list = list.filter((c) => studentIds.has(c.studentId));
+    storage.set('tutorapp_classes', list);
+  }
+
   if (filter?.studentId) list = list.filter((c) => c.studentId === filter.studentId);
   if (filter?.subjectId) list = list.filter((c) => c.subjectId === filter.subjectId);
   if (filter?.status) list = list.filter((c) => c.status === filter.status);
@@ -644,6 +662,15 @@ export const webGenerateMonthClassesForStudent = async (
 
 export const webGetAllPayments = async (filter?: PaymentFilter): Promise<Payment[]> => {
   let list = storage.get<Payment[]>('tutorapp_payments', INITIAL_PAYMENTS);
+
+  // Limpieza automática de cobros huérfanos si el alumno fue eliminado
+  const students = storage.get<Student[]>('tutorapp_students', INITIAL_STUDENTS);
+  const studentIds = new Set(students.map((s) => s.id));
+  if (list.some((p) => !studentIds.has(p.studentId))) {
+    list = list.filter((p) => studentIds.has(p.studentId));
+    storage.set('tutorapp_payments', list);
+  }
+
   if (filter?.studentId) list = list.filter((p) => p.studentId === filter.studentId);
   if (filter?.status) list = list.filter((p) => p.status === filter.status);
   if (filter?.method) list = list.filter((p) => p.method === filter.method);

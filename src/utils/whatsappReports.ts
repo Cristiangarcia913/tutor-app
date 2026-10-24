@@ -99,22 +99,13 @@ export function buildMonthlyWhatsAppReport(params: {
   }
 
   msg += `💰 Total a abonar: ${formattedTotal}\n`;
-  msg += `(${classesCount} ${classesCount === 1 ? 'clase realizada' : 'clases realizadas'}${cancelledCount > 0 ? `, ${cancelledCount} cancelada(s)` : ''})\n\n`;
-
-  if (teacherPhone) {
-    msg += `📱 Pago por Bizum al teléfono: ${teacherPhone}\n`;
-    msg += `(Concepto: Clases ${student.firstName})\n`;
-  }
-  msg += `💵 O en efectivo en la próxima clase.\n`;
+  msg += `(${classesCount} ${classesCount === 1 ? 'clase realizada' : 'clases realizadas'}${cancelledCount > 0 ? `, ${cancelledCount} cancelada(s)` : ''})\n`;
 
   if (customNote && customNote.trim().length > 0) {
     msg += `\nNota: ${customNote.trim()}\n`;
   }
 
-  msg += `\n¡Muchas gracias y buen día!\n`;
-  if (teacherName) {
-    msg += `${teacherName}`;
-  }
+  msg += `\n¡Muchas gracias y buen día!`;
 
   return {
     monthName,
