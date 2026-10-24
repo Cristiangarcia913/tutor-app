@@ -30,7 +30,14 @@ const DAYS = [
   { id: 7, label: 'D', name: 'Domingo' },
 ];
 
-const COMMON_HOURS = ['16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00'];
+const COMMON_HOURS = [
+  '15:00', '15:15', '15:30', '15:45',
+  '16:00', '16:15', '16:30', '16:45',
+  '17:00', '17:15', '17:30', '17:45',
+  '18:00', '18:15', '18:30', '18:45',
+  '19:00', '19:15', '19:30', '19:45',
+  '20:00', '20:15', '20:30'
+];
 const COMMON_DURATIONS = [
   { value: 60, label: '1 hora (60m)' },
   { value: 90, label: '1h 30m (90m)' },
@@ -326,8 +333,42 @@ export default function EditStudentScreen() {
                       </View>
                     </View>
 
-                    {/* Chips rápidos de hora para este día específico */}
-                    <View style={styles.quickHoursRow}>
+                    {/* Selector rápido de minutos (:00, :15, :30, :45) */}
+                    <View style={styles.slotMinutesRow}>
+                      <Text style={styles.slotMinutesLabel}>Minutos:</Text>
+                      {[0, 15, 30, 45].map((min) => {
+                        const [h] = (slot.time || '17:00').split(':');
+                        const targetTime = `${h || '17'}:${String(min).padStart(2, '0')}`;
+                        const isMatch = (slot.time || '').endsWith(`:${String(min).padStart(2, '0')}`);
+                        return (
+                          <TouchableOpacity
+                            key={min}
+                            onPress={() => updateSlotTime(slot.day, targetTime)}
+                            style={[
+                              styles.slotMinuteChip,
+                              isMatch && styles.slotMinuteChipSelected,
+                            ]}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.slotMinuteText,
+                                isMatch && styles.slotMinuteTextSelected,
+                              ]}
+                            >
+                              :{String(min).padStart(2, '0')}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Chips rápidos de hora para este día específico (scroll horizontal) */}
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.quickHoursScroll}
+                    >
                       {COMMON_HOURS.map((h) => {
                         const isSelectedHour = slot.time === h;
                         return (
@@ -350,7 +391,7 @@ export default function EditStudentScreen() {
                           </TouchableOpacity>
                         );
                       })}
-                    </View>
+                    </ScrollView>
                   </View>
                 );
               })}
@@ -622,6 +663,42 @@ const styles = StyleSheet.create({
     width: 52,
     textAlign: 'center',
     padding: 0,
+  },
+  slotMinutesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginVertical: 4,
+  },
+  slotMinutesLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginRight: 2,
+  },
+  slotMinuteChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.xs,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  slotMinuteChipSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  slotMinuteText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  slotMinuteTextSelected: {
+    color: '#FFFFFF',
+  },
+  quickHoursScroll: {
+    gap: 6,
+    paddingVertical: 4,
   },
   noSlotsNotice: {
     flexDirection: 'row',

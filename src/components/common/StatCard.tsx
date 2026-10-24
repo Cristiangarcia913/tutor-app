@@ -48,9 +48,17 @@ export default function StatCard({
           />
         )}
       </View>
-      <Text style={styles.value}>{value}</Text>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+      <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+      <Text style={styles.title} numberOfLines={1}>
+        {title}
+      </Text>
+      {subtitle && (
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {subtitle}
+        </Text>
+      )}
     </View>
   );
 }
@@ -60,7 +68,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
+    padding: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     ...Shadows.sm,
@@ -69,29 +77,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   value: {
-    fontSize: FontSizes.xxl,
+    fontSize: 20,
     fontWeight: '800',
     color: Colors.textPrimary,
     letterSpacing: -0.5,
   },
   title: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     color: Colors.textSecondary,
     marginTop: Spacing.xs,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   subtitle: {
-    fontSize: FontSizes.xs,
+    fontSize: 10,
     color: Colors.textTertiary,
     marginTop: 2,
   },

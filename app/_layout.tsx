@@ -61,6 +61,22 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      // Configurar viewport optimizado para móviles (evita zoom accidental y ajusta safe area)
+      try {
+        let meta = document.querySelector('meta[name="viewport"]');
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.setAttribute('name', 'viewport');
+          document.head.appendChild(meta);
+        }
+        meta.setAttribute(
+          'content',
+          'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'
+        );
+      } catch (e) {
+        // Ignorar si no está disponible document
+      }
+
       const handleGlobalError = (event: ErrorEvent) => {
         console.error('Captured window error:', event.error || event.message);
       };

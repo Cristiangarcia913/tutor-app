@@ -96,6 +96,28 @@ export default function RescheduleClassModal({
               value={newStartTime}
               onChange={setNewStartTime}
             />
+
+            {/* Selector rápido de minutos (:00, :15, :30, :45) */}
+            <View style={styles.quickMinutesRow}>
+              <Text style={styles.quickMinutesLabel}>Minutos:</Text>
+              {[0, 15, 30, 45].map((min) => {
+                const [h] = (newStartTime || '17:00').split(':');
+                const targetTime = `${h || '17'}:${String(min).padStart(2, '0')}`;
+                const isSelected = (newStartTime || '').endsWith(`:${String(min).padStart(2, '0')}`);
+                return (
+                  <TouchableOpacity
+                    key={min}
+                    onPress={() => setNewStartTime(targetTime)}
+                    style={[styles.quickMinuteChip, isSelected && styles.quickMinuteChipSelected]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.quickMinuteChipText, isSelected && styles.quickMinuteChipTextSelected]}>
+                      :{String(min).padStart(2, '0')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Info pill */}
@@ -228,6 +250,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.sm,
     marginTop: Spacing.xs,
+  },
+  quickMinutesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  quickMinutesLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginRight: 2,
+  },
+  quickMinuteChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  quickMinuteChipSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  quickMinuteChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  quickMinuteChipTextSelected: {
+    color: '#FFFFFF',
   },
   cancelBtn: {
     flex: 1,

@@ -550,12 +550,22 @@ export default function ClassesScreen() {
                                   <Text
                                     numberOfLines={1}
                                     style={[
-                                      styles.squareClassChipText,
+                                      styles.squareClassChipTime,
                                       isPaid && styles.squareClassChipTextPaid,
                                       isCancelled && styles.squareClassChipTextCancelled,
                                     ]}
                                   >
-                                    {isPaid ? '✓ ' : ''}{session.startTime} {shortName}
+                                    {isPaid ? '✓ ' : ''}{session.startTime}
+                                  </Text>
+                                  <Text
+                                    numberOfLines={1}
+                                    style={[
+                                      styles.squareClassChipName,
+                                      isPaid && styles.squareClassChipTextPaid,
+                                      isCancelled && styles.squareClassChipTextCancelled,
+                                    ]}
+                                  >
+                                    {shortName}
                                   </Text>
                                 </View>
                               );
@@ -733,13 +743,13 @@ const styles = StyleSheet.create({
   },
   statsSummaryCard: {
     flexDirection: 'row',
-    marginHorizontal: Spacing.md,
+    marginHorizontal: 8,
     marginTop: Spacing.sm,
     marginBottom: Spacing.xs,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.xs,
+    paddingHorizontal: 4,
     borderWidth: 1,
     borderColor: Colors.border,
     ...Shadows.sm,
@@ -756,7 +766,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '700',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
@@ -773,36 +783,36 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   statValueTotal: {
-    fontSize: FontSizes.md,
+    fontSize: 13.5,
     fontWeight: '800',
     color: Colors.text,
     marginTop: 2,
   },
   statValuePaid: {
-    fontSize: FontSizes.md,
+    fontSize: 13.5,
     fontWeight: '800',
     color: '#059669',
     marginTop: 2,
   },
   statValuePending: {
-    fontSize: FontSizes.md,
+    fontSize: 13.5,
     fontWeight: '800',
     color: '#D97706',
     marginTop: 2,
   },
   statSubText: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: Colors.textTertiary,
     marginTop: 1,
   },
   statSubTextPaid: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: '#047857',
     fontWeight: '600',
     marginTop: 1,
   },
   statSubTextPending: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: '#B45309',
     fontWeight: '600',
     marginTop: 1,
@@ -811,7 +821,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 8,
     marginTop: Spacing.xs,
   },
   viewModeSegment: {
@@ -876,8 +886,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: 100,
+    paddingHorizontal: 8,
+    paddingBottom: 110,
   },
 
   /* CALENDARIO MENSUAL CUADRICULA */
@@ -886,7 +896,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 6,
+    padding: 4,
     marginTop: 4,
     ...Shadows.sm,
   },
@@ -912,25 +922,25 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   gridContainer: {
-    gap: 4,
+    gap: 3,
   },
   weekRow: {
     flexDirection: 'row',
-    gap: 3,
+    gap: 2,
   },
   emptySquare: {
     flex: 1,
-    minHeight: 74,
+    minHeight: 68,
     backgroundColor: 'transparent',
   },
   daySquare: {
     flex: 1,
-    minHeight: 74,
+    minHeight: 68,
     backgroundColor: '#FAFAFA',
-    borderRadius: 6,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 3,
+    padding: 2,
     justifyContent: 'flex-start',
   },
   daySquareHasClasses: {
@@ -951,12 +961,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: 1,
   },
   dayNumberCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -967,7 +977,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryDark,
   },
   dayNumberText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: Colors.text,
   },
@@ -980,9 +990,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   dayDotIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   dotPaid: {
     backgroundColor: '#10B981',
@@ -1011,10 +1021,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
     borderColor: '#FCA5A5',
   },
-  squareClassChipText: {
-    fontSize: 8.5,
-    fontWeight: '700',
+  squareClassChipTime: {
+    fontSize: 8,
+    fontWeight: '800',
     color: '#3730A3',
+    lineHeight: 10,
+  },
+  squareClassChipName: {
+    fontSize: 7.5,
+    fontWeight: '600',
+    color: '#4338CA',
+    lineHeight: 9.5,
   },
   squareClassChipTextPaid: {
     color: '#15803D',
@@ -1024,7 +1041,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   squareMoreClassesText: {
-    fontSize: 8,
+    fontSize: 7.5,
     fontWeight: '700',
     color: Colors.textTertiary,
     textAlign: 'center',

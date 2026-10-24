@@ -363,12 +363,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
   title: {
-    fontSize: FontSizes.xxxl,
+    fontSize: FontSizes.xxl,
     fontWeight: '800',
     color: Colors.text,
   },
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
   tabSwitcher: {
     flexDirection: 'row',
     backgroundColor: Colors.surfaceVariant,
-    marginHorizontal: Spacing.lg,
+    marginHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
     padding: 3,
     marginBottom: Spacing.sm,
@@ -431,11 +431,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
   },
   chipsList: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     gap: Spacing.xs,
   },
   listContent: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingTop: Spacing.xs,
   },
   centered: {

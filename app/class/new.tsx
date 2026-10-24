@@ -322,6 +322,56 @@ export default function NewClassScreen() {
           error={errors.startTime}
         />
 
+        {/* Selector rápido de minutos (:00, :15, :30, :45) y horas habituales */}
+        <View style={styles.quickTimeContainer}>
+          <View style={styles.quickMinutesRow}>
+            <Text style={styles.quickMinutesLabel}>Minutos:</Text>
+            {[0, 15, 30, 45].map((min) => {
+              const [h] = startTime.split(':');
+              const targetTime = `${h || '17'}:${String(min).padStart(2, '0')}`;
+              const isSelected = startTime.endsWith(`:${String(min).padStart(2, '0')}`);
+              return (
+                <TouchableOpacity
+                  key={min}
+                  onPress={() => setStartTime(targetTime)}
+                  style={[styles.quickMinuteChip, isSelected && styles.quickMinuteChipSelected]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.quickMinuteChipText, isSelected && styles.quickMinuteChipTextSelected]}>
+                    :{String(min).padStart(2, '0')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickTimeScroll}
+          >
+            {[
+              '15:00', '15:15', '15:30', '15:45',
+              '16:00', '16:15', '16:30', '16:45',
+              '17:00', '17:15', '17:30', '17:45',
+              '18:00', '18:15', '18:30', '18:45',
+              '19:00', '19:15', '19:30', '19:45',
+              '20:00'
+            ].map((t) => (
+              <TouchableOpacity
+                key={t}
+                onPress={() => setStartTime(t)}
+                style={[styles.quickHourChip, startTime === t && styles.quickHourChipSelected]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.quickHourText, startTime === t && styles.quickHourTextSelected]}>
+                  {t}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
         {/* Duración rápida en 1 toque */}
         <View style={styles.fieldBlock}>
           <Text style={styles.fieldLabel}>Duración de la clase</Text>
@@ -713,6 +763,67 @@ const styles = StyleSheet.create({
   },
   submitContainer: {
     marginTop: Spacing.lg,
+  },
+  quickTimeContainer: {
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.md,
+    gap: 8,
+  },
+  quickMinutesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  quickMinutesLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginRight: 2,
+  },
+  quickMinuteChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  quickMinuteChipSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  quickMinuteChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  quickMinuteChipTextSelected: {
+    color: '#FFFFFF',
+  },
+  quickTimeScroll: {
+    gap: 6,
+    paddingVertical: 2,
+  },
+  quickHourChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickHourChipSelected: {
+    backgroundColor: Colors.primaryBg,
+    borderColor: Colors.primary,
+  },
+  quickHourText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  quickHourTextSelected: {
+    color: Colors.primary,
+    fontWeight: '800',
   },
   centered: {
     flex: 1,

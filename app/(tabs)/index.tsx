@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   teacherName: {
-    fontSize: FontSizes.xxl,
+    fontSize: FontSizes.xl,
     fontWeight: '800',
     color: Colors.text,
     marginTop: 2,
@@ -361,9 +361,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   actionIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -371,12 +371,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   content: {
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    padding: Spacing.md,
+    gap: Spacing.sm,
   },
   grid: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   gridCol: {
     flex: 1,

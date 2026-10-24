@@ -104,6 +104,80 @@ export default function TimePicker({
           <View style={styles.dialog} onStartShouldSetResponder={() => true}>
             <Text style={styles.dialogTitle}>Seleccionar hora</Text>
 
+            {/* Selector rápido de minutos exactos (:00, :15, :30, :45) */}
+            <View style={styles.quickMinutesContainer}>
+              <Text style={styles.quickSectionTitle}>Minutos:</Text>
+              <View style={styles.quickMinutesRow}>
+                {[0, 15, 30, 45].map((m) => {
+                  const isSelected = tempMinute === m;
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setTempMinute(m)}
+                      style={[
+                        styles.quickMinuteBtn,
+                        isSelected && styles.quickMinuteBtnSelected,
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.quickMinuteBtnText,
+                          isSelected && styles.quickMinuteBtnTextSelected,
+                        ]}
+                      >
+                        :{pad(m)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Horas habituales en 1 toque */}
+            <View style={styles.quickPresetsContainer}>
+              <Text style={styles.quickSectionTitle}>Horas habituales:</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.quickPresetsScroll}
+              >
+                {[
+                  '15:00', '15:15', '15:30', '15:45',
+                  '16:00', '16:15', '16:30', '16:45',
+                  '17:00', '17:15', '17:30', '17:45',
+                  '18:00', '18:15', '18:30', '18:45',
+                  '19:00', '19:15', '19:30', '19:45',
+                  '20:00'
+                ].map((t) => {
+                  const [h, m] = t.split(':').map(Number);
+                  const isMatch = tempHour === h && tempMinute === m;
+                  return (
+                    <TouchableOpacity
+                      key={t}
+                      onPress={() => {
+                        setTempHour(h);
+                        setTempMinute(m);
+                      }}
+                      style={[
+                        styles.quickPresetChip,
+                        isMatch && styles.quickPresetChipSelected,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.quickPresetText,
+                          isMatch && styles.quickPresetTextSelected,
+                        ]}
+                      >
+                        {t}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
             <View style={styles.pickerRow}>
               {/* Hours */}
               <View style={styles.pickerColumn}>
@@ -259,11 +333,75 @@ const styles = StyleSheet.create({
     ...Shadows.lg,
   },
   dialogTitle: {
-    fontSize: FontSizes.xl,
-    fontWeight: '700',
+    fontSize: FontSizes.lg,
+    fontWeight: '800',
     color: Colors.textPrimary,
     textAlign: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
+  },
+  quickMinutesContainer: {
+    marginBottom: Spacing.sm,
+  },
+  quickSectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  quickMinutesRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  quickMinuteBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  quickMinuteBtnSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  quickMinuteBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  quickMinuteBtnTextSelected: {
+    color: '#FFFFFF',
+  },
+  quickPresetsContainer: {
+    marginBottom: Spacing.md,
+  },
+  quickPresetsScroll: {
+    gap: 6,
+    paddingVertical: 2,
+  },
+  quickPresetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickPresetChipSelected: {
+    backgroundColor: Colors.primaryBg,
+    borderColor: Colors.primary,
+  },
+  quickPresetText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  quickPresetTextSelected: {
+    color: Colors.primary,
+    fontWeight: '800',
   },
   pickerRow: {
     flexDirection: 'row',
