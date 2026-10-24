@@ -25,6 +25,7 @@ interface InputProps {
   multiline?: boolean;
   secureTextEntry?: boolean;
   editable?: boolean;
+  maxLength?: number;
 }
 
 export default function Input({
@@ -38,6 +39,7 @@ export default function Input({
   multiline = false,
   secureTextEntry = false,
   editable = true,
+  maxLength,
 }: InputProps) {
   const [focused, setFocused] = useState(false);
 
@@ -81,6 +83,7 @@ export default function Input({
           multiline={multiline}
           secureTextEntry={secureTextEntry}
           editable={editable}
+          maxLength={maxLength}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           textAlignVertical={multiline ? 'top' : 'center'}

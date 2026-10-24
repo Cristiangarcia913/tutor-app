@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
 import * as db from '../database/database';
 import { seedDatabase } from '../database/seed';
+import { syncCalendarToServer } from '../utils/calendarSync';
 import {
   Student,
   Subject,
@@ -99,12 +100,41 @@ interface DatabaseContextType {
   clearAllData: () => Promise<void>;
   resetWithSeed: () => Promise<void>;
   refreshAll: () => Promise<void>;
+  syncCalendarNow: () => Promise<boolean>;
 }
 
 const DatabaseContext = createContext<DatabaseContextType | null>(null);
 
 export function DatabaseProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
+
+  const triggerCalendarSync = async (): Promise<boolean> => {
+    try {
+      const [allClasses, allStudents, allSubjects, appSettings] = await Promise.all([
+        db.getAllClassSessions(),
+        db.getAllStudents(),
+        db.getAllSubjects(),
+        db.getSettings(),
+      ]);
+      const studentMap: Record<string, Student> = {};
+      allStudents.forEach((s) => {
+        studentMap[s.id] = s;
+      });
+      const subjectMap: Record<string, Subject> = {};
+      allSubjects.forEach((s) => {
+        subjectMap[s.id] = s;
+      });
+      return await syncCalendarToServer(
+        allClasses,
+        studentMap,
+        subjectMap,
+        appSettings?.teacherName || 'Cristian'
+      );
+    } catch (err) {
+      console.warn('Auto calendar sync error:', err);
+      return false;
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -115,7 +145,10 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         if (empty) {
           await seedDatabase();
         }
-        if (mounted) setIsReady(true);
+        if (mounted) {
+          setIsReady(true);
+          triggerCalendarSync();
+        }
       } catch (error) {
         console.error('Database initialization error:', error);
         if (mounted) setIsReady(true);
@@ -162,7 +195,10 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       getStudentWithDetails: async (id: string) => db.getStudentWithDetails(id),
       createStudent: async (data: StudentFormData) => db.createStudent(data),
       updateStudent: async (id: string, data: Partial<StudentFormData>) => db.updateStudent(id, data),
-      deleteStudent: async (id: string) => db.deleteStudent(id),
+      deleteStudent: async (id: string) => {
+        await db.deleteStudent(id);
+        triggerCalendarSync();
+      },
       searchStudents: async (query: string) => db.searchStudents(query),
 
       subjects: [],
@@ -183,10 +219,26 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       getClasses: loadClasses,
       getClass: async (id: string) => db.getClassSessionById(id),
       getClassesByStudent: async (studentId: string) => db.getAllClassSessions({ studentId }),
-      createClass: async (data: ClassSessionFormData) => db.createClassSession(data),
-      createClassesBatch: async (dataList: ClassSessionFormData[]) => db.createClassesBatch(dataList),
-      updateClass: async (id: string, data: Partial<ClassSessionFormData>) => db.updateClassSession(id, data),
-      cancelClass: async (id: string, reason: string) => db.cancelClassSession(id, reason),
+      createClass: async (data: ClassSessionFormData) => {
+        const res = await db.createClassSession(data);
+        triggerCalendarSync();
+        return res;
+      },
+      createClassesBatch: async (dataList: ClassSessionFormData[]) => {
+        const res = await db.createClassesBatch(dataList);
+        triggerCalendarSync();
+        return res;
+      },
+      updateClass: async (id: string, data: Partial<ClassSessionFormData>) => {
+        const res = await db.updateClassSession(id, data);
+        triggerCalendarSync();
+        return res;
+      },
+      cancelClass: async (id: string, reason: string) => {
+        const res = await db.cancelClassSession(id, reason);
+        triggerCalendarSync();
+        return res;
+      },
       rescheduleClass: async (
         id: string,
         newDate: string,
@@ -194,11 +246,25 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         newEndTime: string,
         newDuration?: number,
         reason?: string
-      ) => db.rescheduleClassSession(id, newDate, newStartTime, newEndTime, newDuration, reason),
-      deleteClass: async (id: string) => db.deleteClassSession(id),
-      toggleClassPaid: async (id: string, method?: 'bizum' | 'efectivo') => db.toggleClassPaid(id, method),
-      generateMonthClassesForStudent: async (studentId: string, year: number, month: number) =>
-        db.generateMonthClassesForStudent(studentId, year, month),
+      ) => {
+        const res = await db.rescheduleClassSession(id, newDate, newStartTime, newEndTime, newDuration, reason);
+        triggerCalendarSync();
+        return res;
+      },
+      deleteClass: async (id: string) => {
+        await db.deleteClassSession(id);
+        triggerCalendarSync();
+      },
+      toggleClassPaid: async (id: string, method?: 'bizum' | 'efectivo') => {
+        const res = await db.toggleClassPaid(id, method);
+        triggerCalendarSync();
+        return res;
+      },
+      generateMonthClassesForStudent: async (studentId: string, year: number, month: number) => {
+        const res = await db.generateMonthClassesForStudent(studentId, year, month);
+        triggerCalendarSync();
+        return res;
+      },
       getUpcomingClasses: async (limit: number = 5) => db.getUpcomingClasses(limit),
       getTodayClasses: async () => db.getTodayClasses(),
 
@@ -233,10 +299,14 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       updateSettings: async (data: Partial<AppSettings>) => db.updateSettings(data),
 
       exportData: async () => db.exportData(),
-      clearAllData: async () => db.clearAllData(),
+      clearAllData: async () => {
+        await db.clearAllData();
+        triggerCalendarSync();
+      },
       resetWithSeed: async () => {
         await db.clearAllData();
         await seedDatabase();
+        triggerCalendarSync();
       },
       refreshAll: async () => {
         await Promise.all([
@@ -247,7 +317,9 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
           loadDashboardStats(),
           loadSettings(),
         ]);
+        triggerCalendarSync();
       },
+      syncCalendarNow: triggerCalendarSync,
     };
   }, [isReady]);
 

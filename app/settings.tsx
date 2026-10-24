@@ -8,10 +8,15 @@ import {
   Alert,
   ActivityIndicator,
   Share,
+  Platform,
+  Modal,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as Linking from 'expo-linking';
 import { useDatabase } from '../src/hooks/useDatabase';
 import {
   Card,
@@ -26,6 +31,18 @@ import {
   BorderRadius,
 } from '../src/constants/theme';
 import { sendInstantReminderNotification } from '../src/utils/notifications';
+import {
+  isSecurityEnabled,
+  isFaceIdEnabled,
+  isFaceIdAvailable,
+  setupSecurity,
+  disableSecurity,
+} from '../src/utils/security';
+import {
+  getCalendarSubscriptionUrl,
+  getCalendarHttpsUrl,
+  downloadIcsFile,
+} from '../src/utils/calendarSync';
 import type { AppSettings } from '../src/types';
 
 export default function SettingsScreen() {
@@ -43,6 +60,18 @@ export default function SettingsScreen() {
   const [phone, setPhone] = useState('');
   const [defaultRate, setDefaultRate] = useState('20');
 
+  // Security state
+  const [securityActive, setSecurityActive] = useState(false);
+  const [faceIdActive, setFaceIdActive] = useState(false);
+  const [showSecurityModal, setShowSecurityModal] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [enableFaceIdChoice, setEnableFaceIdChoice] = useState(true);
+  const [settingUpSecurity, setSettingUpSecurity] = useState(false);
+
+  // Calendar state
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
+
   // Dialogs
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -57,6 +86,10 @@ export default function SettingsScreen() {
         setPhone(s.phone || '');
         setDefaultRate(s.defaultRate ? s.defaultRate.toString() : '20');
       }
+
+      // Cargar estado de seguridad
+      setSecurityActive(isSecurityEnabled());
+      setFaceIdActive(isFaceIdEnabled());
     } catch (e) {
       console.error('Error loading settings:', e);
     } finally {
@@ -84,6 +117,132 @@ export default function SettingsScreen() {
       Alert.alert('Error', 'No se pudieron guardar los ajustes.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Acciones de Seguridad
+  const handleSaveSecurity = async () => {
+    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+      Alert.alert('PIN inválido', 'El PIN debe ser exactamente de 4 dígitos numéricos.');
+      return;
+    }
+    if (newPin !== confirmPin) {
+      Alert.alert('Error', 'Los dos PIN introducidos no coinciden.');
+      return;
+    }
+
+    setSettingUpSecurity(true);
+    try {
+      const ok = await setupSecurity(newPin, enableFaceIdChoice);
+      if (ok) {
+        setSecurityActive(true);
+        setFaceIdActive(enableFaceIdChoice && isFaceIdEnabled());
+        setShowSecurityModal(false);
+        setNewPin('');
+        setConfirmPin('');
+        Alert.alert(
+          '¡Seguridad Activada!',
+          enableFaceIdChoice
+            ? 'Protección con Face ID y PIN de 4 dígitos configurada con éxito.'
+            : 'PIN de 4 dígitos configurado correctamente.'
+        );
+      } else {
+        Alert.alert('Error', 'No se pudo guardar la configuración de seguridad.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Error al configurar seguridad.');
+    } finally {
+      setSettingUpSecurity(false);
+    }
+  };
+
+  const handleDisableSecurity = () => {
+    Alert.alert(
+      'Desactivar Seguridad',
+      '¿Seguro que deseas desactivar el PIN y Face ID? La app se abrirá directamente sin solicitar autenticación.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Desactivar',
+          style: 'destructive',
+          onPress: () => {
+            disableSecurity();
+            setSecurityActive(false);
+            setFaceIdActive(false);
+            Alert.alert('Seguridad desactivada', 'Se ha eliminado la protección.');
+          },
+        },
+      ]
+    );
+  };
+
+  // Acciones de Calendario iPhone
+  const handleSubscribeCalendar = () => {
+    const url = getCalendarSubscriptionUrl('cristian');
+    if (!url) {
+      Alert.alert('Error', 'No se pudo generar la URL de suscripción.');
+      return;
+    }
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.href = url;
+    } else {
+      Linking.openURL(url);
+    }
+  };
+
+  const handleCopyCalendarUrl = async () => {
+    const url = getCalendarHttpsUrl('cristian');
+    try {
+      await Clipboard.setStringAsync(url);
+      Alert.alert(
+        '¡Enlace Copiado!',
+        'El enlace del calendario ha sido copiado al portapapeles. Puedes pegarlo en Ajustes > Calendario de tu iPhone o en tu Mac.'
+      );
+    } catch {
+      Alert.alert('Enlace del Calendario', url);
+    }
+  };
+
+  const handleDownloadIcs = async () => {
+    try {
+      const [classes, students, subjects] = await Promise.all([
+        db.loadClasses(),
+        db.loadStudents(),
+        db.loadSubjects(),
+      ]);
+      const studentMap: Record<string, any> = {};
+      students.forEach((s) => {
+        studentMap[s.id] = s;
+      });
+      const subjectMap: Record<string, any> = {};
+      subjects.forEach((s) => {
+        subjectMap[s.id] = s;
+      });
+      downloadIcsFile(classes, studentMap, subjectMap, teacherName || 'Cristian');
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo descargar el archivo .ics.');
+    }
+  };
+
+  const handleForceCalendarSync = async () => {
+    setSyncingCalendar(true);
+    try {
+      const ok = await db.syncCalendarNow();
+      if (ok) {
+        Alert.alert(
+          '¡Sincronizado!',
+          'El feed de calendario en la nube se ha actualizado con todas tus clases actuales.'
+        );
+      } else {
+        Alert.alert(
+          'Información',
+          'Sincronización enviada. Si no tienes conexión a internet se actualizará al reconectar.'
+        );
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Error al sincronizar.');
+    } finally {
+      setSyncingCalendar(false);
     }
   };
 
@@ -152,6 +311,148 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Calendario de iPhone (iCloud) - Opción B Sincronización Automática */}
+        <Card style={styles.card}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.iconCircleBlue}>
+              <Ionicons name="calendar" size={22} color="#2563EB" />
+            </View>
+            <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+              <Text style={styles.sectionTitle}>Calendario de iPhone (iCloud)</Text>
+              <View style={styles.badgeSuccess}>
+                <Ionicons name="checkmark-circle" size={13} color="#166534" />
+                <Text style={styles.badgeSuccessText}>Sincronización Automática Activa</Text>
+              </View>
+            </View>
+          </View>
+
+          <Text style={[styles.cardSubtitle, { marginTop: Spacing.sm }]}>
+            Todas tus clases de Matemáticas se reflejan automáticamente en el calendario oficial de tu iPhone con hora exacta, alumno, dirección y estado de cobro.
+          </Text>
+
+          <View style={styles.featureList}>
+            <View style={styles.featureItem}>
+              <Ionicons name="flash-outline" size={16} color={Colors.primary} />
+              <Text style={styles.featureText}>
+                Si añades, cambias la hora o marcas una clase como pagada, se actualiza sola.
+              </Text>
+            </View>
+            <View style={styles.featureItem}>
+              <Ionicons name="location-outline" size={16} color={Colors.primary} />
+              <Text style={styles.featureText}>
+                Incluye si es Presencial, a domicilio (con dirección) u online, y notas.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.buttonCol}>
+            <Button
+              title="📲 Suscribir mi iPhone al Calendario"
+              onPress={handleSubscribeCalendar}
+            />
+
+            <Button
+              title="📋 Copiar Enlace de Suscripción"
+              variant="outline"
+              icon="copy-outline"
+              onPress={handleCopyCalendarUrl}
+            />
+
+            <Button
+              title="📥 Descargar Archivo .ics"
+              variant="outline"
+              icon="download-outline"
+              onPress={handleDownloadIcs}
+            />
+
+            <Button
+              title={syncingCalendar ? "Sincronizando..." : "🔄 Forzar Sincronización en la Nube"}
+              variant="ghost"
+              disabled={syncingCalendar}
+              onPress={handleForceCalendarSync}
+            />
+          </View>
+
+          {/* Instrucciones sencillas para iPhone */}
+          <View style={styles.instructionsBox}>
+            <Text style={styles.instructionsTitle}>
+              📲 Cómo conectarlo en tu iPhone en 10 segundos:
+            </Text>
+            <Text style={styles.instructionsStep}>
+              1. Pulsa arriba en <Text style={{ fontWeight: '700' }}>"Suscribir mi iPhone al Calendario"</Text>.
+            </Text>
+            <Text style={styles.instructionsStep}>
+              2. Safari abrirá una ventana de Apple preguntando: <Text style={{ fontStyle: 'italic' }}>"¿Deseas suscribirte al calendario Clases Cristian?"</Text>.
+            </Text>
+            <Text style={styles.instructionsStep}>
+              3. Pulsa <Text style={{ fontWeight: '700' }}>"Suscribirse"</Text> y luego <Text style={{ fontWeight: '700' }}>"Añadir"</Text>.
+            </Text>
+            <Text style={[styles.instructionsStep, { marginBottom: 0 }]}>
+              4. ¡Listo! Verás todas tus clases en la app Calendario de iOS y se sincronizará con tu iCloud.
+            </Text>
+          </View>
+        </Card>
+
+        {/* Seguridad & Face ID */}
+        <Card style={styles.card}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.iconCirclePurple}>
+              <Ionicons name="scan-outline" size={22} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+              <Text style={styles.sectionTitle}>Seguridad & Face ID</Text>
+              {securityActive ? (
+                <View style={styles.badgeSuccess}>
+                  <Ionicons name="shield-checkmark" size={13} color="#166534" />
+                  <Text style={styles.badgeSuccessText}>
+                    {faceIdActive ? 'Face ID + PIN Activo' : 'PIN de 4 dígitos Activo'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.badgeWarning}>
+                  <Ionicons name="lock-open-outline" size={13} color="#B45309" />
+                  <Text style={styles.badgeWarningText}>Desactivada (Acceso libre)</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          <Text style={[styles.cardSubtitle, { marginTop: Spacing.sm }]}>
+            Protege los datos de tus alumnos, ingresos y clases frente a accesos no autorizados mediante reconocimiento facial (Face ID) o un PIN de 4 dígitos.
+          </Text>
+
+          {securityActive ? (
+            <View style={styles.buttonCol}>
+              <Button
+                title="Cambiar PIN o Ajustes de Face ID"
+                variant="outline"
+                icon="key-outline"
+                onPress={() => {
+                  setNewPin('');
+                  setConfirmPin('');
+                  setShowSecurityModal(true);
+                }}
+              />
+              <Button
+                title="Desactivar Protección"
+                variant="danger"
+                icon="lock-open-outline"
+                onPress={handleDisableSecurity}
+              />
+            </View>
+          ) : (
+            <Button
+              title="🔒 Activar Face ID y PIN"
+              icon="scan-outline"
+              onPress={() => {
+                setNewPin('');
+                setConfirmPin('');
+                setShowSecurityModal(true);
+              }}
+            />
+          )}
+        </Card>
+
         {/* Profile Card */}
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Perfil del Profesor</Text>
@@ -277,6 +578,85 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
+      {/* Modal de Configuración de Seguridad */}
+      <Modal
+        visible={showSecurityModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSecurityModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitleRow}>
+                <Ionicons name="shield-checkmark" size={22} color={Colors.primary} />
+                <Text style={styles.modalTitle}>Configurar Seguridad</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowSecurityModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={22} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalDescription}>
+              Introduce un código PIN de 4 dígitos. Si tienes Face ID en tu iPhone, podrás desbloquear la app al instante con tu cara.
+            </Text>
+
+            <Input
+              label="Nuevo PIN (4 dígitos)"
+              value={newPin}
+              onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+              keyboardType="number-pad"
+              maxLength={4}
+              secureTextEntry
+              placeholder="••••"
+            />
+
+            <Input
+              label="Confirmar PIN"
+              value={confirmPin}
+              onChangeText={(t) => setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+              keyboardType="number-pad"
+              maxLength={4}
+              secureTextEntry
+              placeholder="••••"
+            />
+
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1, marginRight: Spacing.sm }}>
+                <Text style={styles.switchLabel}>Activar Face ID de Apple</Text>
+                <Text style={styles.switchSublabel}>
+                  Escaneará tu cara automáticamente al abrir la app
+                </Text>
+              </View>
+              <Switch
+                value={enableFaceIdChoice}
+                onValueChange={setEnableFaceIdChoice}
+                trackColor={{ false: '#CBD5E1', true: '#818CF8' }}
+                thumbColor={enableFaceIdChoice ? Colors.primary : '#F1F5F9'}
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <Button
+                title="Cancelar"
+                variant="outline"
+                onPress={() => setShowSecurityModal(false)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title={settingUpSecurity ? 'Guardando...' : 'Activar'}
+                onPress={handleSaveSecurity}
+                disabled={settingUpSecurity || newPin.length !== 4 || confirmPin.length !== 4}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Confirmation Dialogs */}
       <ConfirmDialog
         visible={showResetConfirm}
@@ -339,7 +719,98 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     fontWeight: '700',
     color: Colors.text,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconCircleBlue: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconCirclePurple: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F3E8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: 4,
+  },
+  badgeSuccessText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#166534',
+  },
+  badgeWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: 4,
+  },
+  badgeWarningText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#B45309',
+  },
+  cardSubtitle: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: Spacing.sm,
+  },
+  featureList: {
+    gap: 6,
     marginBottom: Spacing.md,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  featureText: {
+    fontSize: 13,
+    color: Colors.text,
+    flex: 1,
+  },
+  instructionsBox: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  instructionsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#15803D',
+    marginBottom: 6,
+  },
+  instructionsStep: {
+    fontSize: 12,
+    color: '#166534',
+    marginBottom: 4,
+    lineHeight: 18,
   },
   manageRow: {
     flexDirection: 'row',
@@ -388,5 +859,71 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    width: '100%',
+    maxWidth: 420,
+    gap: Spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  modalTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalDescription: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surfaceVariant,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  switchLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  switchSublabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
   },
 });
