@@ -8,6 +8,8 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarShowLabel: true,
+        tabBarLabelPosition: 'below-icon',
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarStyle: styles.tabBar,
@@ -19,8 +21,9 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Inicio',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+          tabBarLabel: 'Inicio',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={21} color={color} />
           ),
         }}
       />
@@ -28,8 +31,9 @@ export default function TabLayout() {
         name="students"
         options={{
           title: 'Alumnos',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={size} color={color} />
+          tabBarLabel: 'Alumnos',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={21} color={color} />
           ),
         }}
       />
@@ -37,8 +41,9 @@ export default function TabLayout() {
         name="classes"
         options={{
           title: 'Clases',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={size} color={color} />
+          tabBarLabel: 'Clases',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={21} color={color} />
           ),
         }}
       />
@@ -46,8 +51,9 @@ export default function TabLayout() {
         name="finances"
         options={{
           title: 'Finanzas',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="wallet" size={size} color={color} />
+          tabBarLabel: 'Finanzas',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={21} color={color} />
           ),
         }}
       />
@@ -60,9 +66,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopColor: Colors.border,
     borderTopWidth: 1,
-    height: Platform.OS === 'ios' ? 88 : (Platform.OS === 'web' ? 72 : 64),
-    paddingTop: Spacing.xs,
-    paddingBottom: Platform.OS === 'ios' ? 28 : (Platform.OS === 'web' ? 14 : Spacing.xs),
+    height: Platform.OS === 'ios' ? 88 : (Platform.OS === 'web' ? 70 : 64),
+    paddingTop: 4,
+    paddingBottom: Platform.OS === 'ios' ? 28 : (Platform.OS === 'web' ? 12 : 4),
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
@@ -71,12 +77,17 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   tabBarLabel: {
-    fontSize: FontSizes.xs,
-    fontWeight: '600',
-    marginTop: 2,
+    fontSize: 10.5,
+    fontWeight: '700',
+    marginTop: 1,
+    marginBottom: 0,
+    letterSpacing: -0.2,
   },
   tabBarItem: {
-    paddingVertical: 4,
+    paddingTop: 3,
+    paddingBottom: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {}),
   },
 });
