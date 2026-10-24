@@ -192,6 +192,21 @@ export const deleteClassSession = async (id: string): Promise<void> => {
   return web.webDeleteClass(id);
 };
 
+export const toggleClassPaid = async (
+  id: string,
+  method: 'bizum' | 'efectivo' = 'bizum'
+): Promise<{ classSession: ClassSession | null; payment?: Payment }> => {
+  return web.webToggleClassPaid(id, method);
+};
+
+export const generateMonthClassesForStudent = async (
+  studentId: string,
+  year: number,
+  month: number
+): Promise<ClassSession[]> => {
+  return web.webGenerateMonthClassesForStudent(studentId, year, month);
+};
+
 export const getUpcomingClasses = async (limit: number = 5): Promise<ClassSession[]> => {
   const all = await web.webGetAllClasses();
   return all.filter((c) => c.status === 'scheduled').slice(0, limit);

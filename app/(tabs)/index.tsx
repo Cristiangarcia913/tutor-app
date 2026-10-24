@@ -116,6 +116,15 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [loadData]);
 
+  const handleTogglePaid = async (cls: ClassSession) => {
+    try {
+      await db.toggleClassPaid(cls.id);
+      await loadData();
+    } catch (e) {
+      console.error('Error toggling paid in dashboard:', e);
+    }
+  };
+
   const teacherName = settings?.teacherName || 'Profesor';
 
   if (loading) {
@@ -278,6 +287,7 @@ export default function DashboardScreen() {
               student={students[cls.studentId]}
               subject={subjects[cls.subjectId]}
               onPress={() => router.push(`/class/${cls.id}`)}
+              onTogglePaid={() => handleTogglePaid(cls)}
               showStudentName={true}
             />
           ))

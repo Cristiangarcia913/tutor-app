@@ -16,14 +16,31 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDatabase } from '../../../src/hooks/useDatabase';
 import { Input, Button } from '../../../src/components/common';
-import { Colors, Spacing, FontSizes, BorderRadius } from '../../../src/constants/theme';
+import { Colors, Spacing, FontSizes, BorderRadius, Shadows } from '../../../src/constants/theme';
 import type { StudentFormData } from '../../../src/types';
+
+const DAYS = [
+  { id: 1, label: 'L', name: 'Lunes' },
+  { id: 2, label: 'M', name: 'Martes' },
+  { id: 3, label: 'X', name: 'Miércoles' },
+  { id: 4, label: 'J', name: 'Jueves' },
+  { id: 5, label: 'V', name: 'Viernes' },
+  { id: 6, label: 'S', name: 'Sábado' },
+  { id: 7, label: 'D', name: 'Domingo' },
+];
+
+const COMMON_HOURS = ['16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00'];
+const COMMON_DURATIONS = [
+  { value: 60, label: '1 hora (60m)' },
+  { value: 90, label: '1h 30m (90m)' },
+  { value: 120, label: '2 horas (120m)' },
+];
 
 export default function EditStudentScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getStudent, updateStudent } = useDatabase();
+  const { getStudent, updateStudent, generateMonthClassesForStudent } = useDatabase();
 
   const [loading, setLoading] = useState(true);
   const [firstName, setFirstName] = useState('');
@@ -35,6 +52,13 @@ export default function EditStudentScreen() {
   const [parentPhone, setParentPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [active, setActive] = useState(true);
+
+  // Horario semanal asignado
+  const [scheduleDays, setScheduleDays] = useState<number[]>([]);
+  const [scheduleTime, setScheduleTime] = useState('17:00');
+  const [scheduleDuration, setScheduleDuration] = useState(60);
+  const [scheduleRate, setScheduleRate] = useState('15');
+  const [autoGenerateMonth, setAutoGenerateMonth] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -54,6 +78,10 @@ export default function EditStudentScreen() {
           setParentPhone(student.parentPhone || '');
           setNotes(student.notes || '');
           setActive(student.active);
+          setScheduleDays(student.scheduleDays || []);
+          setScheduleTime(student.scheduleTime || '17:00');
+          setScheduleDuration(student.scheduleDuration || 60);
+          setScheduleRate(student.scheduleRate !== undefined ? String(student.scheduleRate) : '15');
         }
       } catch (error) {
         Alert.alert('Error', 'No se pudo cargar la información del alumno.');
@@ -65,6 +93,12 @@ export default function EditStudentScreen() {
 
     loadStudent();
   }, [id, getStudent, router]);
+
+  const toggleDay = (dayId: number) => {
+    setScheduleDays((prev) =>
+      prev.includes(dayId) ? prev.filter((d) => d !== dayId) : [...prev, dayId].sort()
+    );
+  };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -87,9 +121,19 @@ export default function EditStudentScreen() {
         parentPhone: parentPhone.trim() || undefined,
         notes: notes.trim(),
         active,
+        scheduleDays,
+        scheduleTime: scheduleTime.trim() || '17:00',
+        scheduleDuration,
+        scheduleRate: parseFloat(scheduleRate) || 15,
       };
 
       await updateStudent(id, data);
+
+      if (autoGenerateMonth && scheduleDays.length > 0) {
+        const now = new Date();
+        await generateMonthClassesForStudent(id, now.getFullYear(), now.getMonth() + 1);
+      }
+
       if (router.canGoBack()) {
         router.back();
       } else {
@@ -118,7 +162,10 @@ export default function EditStudentScreen() {
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/students'))}
+          style={styles.closeButton}
+        >
           <Ionicons name="close" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Editar Alumno</Text>
@@ -171,7 +218,7 @@ export default function EditStudentScreen() {
         />
 
         <Input
-          label="Dirección"
+          label="Dirección de la clase"
           value={address}
           onChangeText={setAddress}
           placeholder="Calle Mayor 14, 3ºB"
@@ -191,6 +238,112 @@ export default function EditStudentScreen() {
           keyboardType="phone-pad"
           placeholder="+34 612 345 678"
         />
+
+        {/* SECCIÓN HORARIO FIJO SEMANAL */}
+        <View style={styles.scheduleSectionCard}>
+          <View style={styles.scheduleSectionHeader}>
+            <Ionicons name="calendar" size={20} color={Colors.primary} />
+            <Text style={styles.scheduleSectionTitle}>Horario Semanal Asignado</Text>
+          </View>
+          <Text style={styles.scheduleSectionSubtitle}>
+            Indica qué días de la semana y a qué hora dará clase para programarlas automáticamente.
+          </Text>
+
+          {/* Días de la semana */}
+          <Text style={styles.scheduleFieldLabel}>Días de clase en la semana:</Text>
+          <View style={styles.daysRow}>
+            {DAYS.map((d) => {
+              const isSelected = scheduleDays.includes(d.id);
+              return (
+                <TouchableOpacity
+                  key={d.id}
+                  activeOpacity={0.7}
+                  onPress={() => toggleDay(d.id)}
+                  style={[styles.dayButton, isSelected && styles.dayButtonSelected]}
+                >
+                  <Text style={[styles.dayButtonText, isSelected && styles.dayButtonTextSelected]}>
+                    {d.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={styles.daysHelpText}>
+            {scheduleDays.length === 0
+              ? 'Ningún día seleccionado'
+              : `Clases los: ${DAYS.filter((d) => scheduleDays.includes(d.id)).map((d) => d.name).join(', ')}`}
+          </Text>
+
+          {/* Hora de inicio y chips rápidos */}
+          <Input
+            label="Hora de inicio (HH:mm)"
+            value={scheduleTime}
+            onChangeText={setScheduleTime}
+            placeholder="17:00"
+          />
+          <View style={styles.quickHoursRow}>
+            {COMMON_HOURS.map((h) => (
+              <TouchableOpacity
+                key={h}
+                onPress={() => setScheduleTime(h)}
+                style={[styles.quickHourChip, scheduleTime === h && styles.quickHourChipSelected]}
+              >
+                <Text style={[styles.quickHourText, scheduleTime === h && styles.quickHourTextSelected]}>
+                  {h}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Duración */}
+          <Text style={[styles.scheduleFieldLabel, { marginTop: Spacing.sm }]}>Duración de la sesión:</Text>
+          <View style={styles.durationRow}>
+            {COMMON_DURATIONS.map((dur) => (
+              <TouchableOpacity
+                key={dur.value}
+                onPress={() => setScheduleDuration(dur.value)}
+                style={[
+                  styles.durationChip,
+                  scheduleDuration === dur.value && styles.durationChipSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.durationChipText,
+                    scheduleDuration === dur.value && styles.durationChipTextSelected,
+                  ]}
+                >
+                  {dur.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Precio / Tarifa */}
+          <Input
+            label="Precio por clase (€)"
+            value={scheduleRate}
+            onChangeText={setScheduleRate}
+            keyboardType="numeric"
+            placeholder="15"
+          />
+
+          {/* Auto-programar mes actual */}
+          <View style={styles.autoGenSwitchRow}>
+            <View style={{ flex: 1, marginRight: Spacing.sm }}>
+              <Text style={styles.autoGenSwitchTitle}>Generar clases de este mes ahora</Text>
+              <Text style={styles.autoGenSwitchSub}>
+                Crea automáticamente las clases restantes de este mes según este horario.
+              </Text>
+            </View>
+            <Switch
+              value={autoGenerateMonth}
+              onValueChange={setAutoGenerateMonth}
+              trackColor={{ false: Colors.border, true: '#86EFAC' }}
+              thumbColor={autoGenerateMonth ? '#10B981' : Colors.surface}
+            />
+          </View>
+        </View>
 
         <Input
           label="Notas adicionales (opcional)"
@@ -235,15 +388,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
+  },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
   },
   closeButton: {
     padding: Spacing.xs,
@@ -254,8 +413,8 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   saveButton: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
   },
   saveButtonText: {
     fontSize: FontSizes.md,
@@ -264,27 +423,169 @@ const styles = StyleSheet.create({
   },
   formContent: {
     padding: Spacing.lg,
+    gap: Spacing.md,
   },
   sectionTitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: Spacing.xs,
+  },
+  scheduleSectionCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginVertical: Spacing.xs,
+    ...Shadows.sm,
+  },
+  scheduleSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  scheduleSectionTitle: {
     fontSize: FontSizes.md,
+    fontWeight: '800',
+    color: Colors.text,
+  },
+  scheduleSectionSubtitle: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+    lineHeight: 18,
+  },
+  scheduleFieldLabel: {
+    fontSize: FontSizes.xs,
     fontWeight: '700',
     color: Colors.text,
+    marginBottom: 8,
+  },
+  daysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  dayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayButtonSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  dayButtonText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  dayButtonTextSelected: {
+    color: '#FFFFFF',
+  },
+  daysHelpText: {
+    fontSize: 11,
+    color: Colors.primary,
+    fontWeight: '600',
     marginBottom: Spacing.sm,
+  },
+  quickHoursRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: -Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  quickHourChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  quickHourChipSelected: {
+    backgroundColor: Colors.primaryBg,
+    borderColor: Colors.primary,
+  },
+  quickHourText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  quickHourTextSelected: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  durationRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: Spacing.sm,
+  },
+  durationChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  durationChipSelected: {
+    backgroundColor: Colors.primaryBg,
+    borderColor: Colors.primary,
+  },
+  durationChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  durationChipTextSelected: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  autoGenSwitchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    marginTop: Spacing.xs,
+  },
+  autoGenSwitchTitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  autoGenSwitchSub: {
+    fontSize: 11,
+    color: '#15803D',
+    marginTop: 2,
   },
   switchRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: Colors.surface,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.lg,
   },
   switchLabel: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.md,
     fontWeight: '600',
     color: Colors.text,
   },
@@ -295,10 +596,5 @@ const styles = StyleSheet.create({
   },
   submitContainer: {
     marginTop: Spacing.sm,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

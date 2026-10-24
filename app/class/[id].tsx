@@ -335,6 +335,51 @@ export default function ClassDetailScreen() {
           />
         )}
 
+        {/* Payment Status & Action Card */}
+        {session.status !== 'cancelled' && (
+          <Card style={[styles.card, session.isPaid && { backgroundColor: '#F0FDF4', borderColor: '#86EFAC' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flex: 1, marginRight: Spacing.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons
+                    name={session.isPaid ? 'checkmark-circle' : 'time-outline'}
+                    size={18}
+                    color={session.isPaid ? '#059669' : '#D97706'}
+                  />
+                  <Text style={{ fontSize: FontSizes.sm, fontWeight: '800', color: session.isPaid ? '#047857' : Colors.text }}>
+                    {session.isPaid ? '✓ Clase Pagada' : '⏳ Cobro Pendiente'}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 12, color: session.isPaid ? '#065F46' : Colors.textSecondary, marginTop: 4 }}>
+                  {session.isPaid
+                    ? 'Esta clase está registrada como pagada.'
+                    : 'Aún no se ha cobrado el importe de esta sesión.'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: session.isPaid ? '#DCFCE7' : '#4F46E5',
+                  paddingHorizontal: 14,
+                  paddingVertical: 9,
+                  borderRadius: BorderRadius.md,
+                  borderWidth: 1,
+                  borderColor: session.isPaid ? '#86EFAC' : '#4F46E5',
+                }}
+                onPress={async () => {
+                  await db.toggleClassPaid(session.id);
+                  await loadData();
+                }}
+              >
+                <Text style={{ color: session.isPaid ? '#047857' : '#FFFFFF', fontWeight: '800', fontSize: 12 }}>
+                  {session.isPaid ? 'Poner Pendiente' : '✓ Marcar Pagada'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
+        )}
+
         {/* Notes & Homework */}
         {session.notes ? (
           <Card style={styles.card}>

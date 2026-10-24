@@ -21,6 +21,12 @@ export interface Student {
   notes: string;
   active: boolean;
   avatarColor: string;
+  // Horario semanal asignado al alumno:
+  scheduleDays?: number[]; // [1, 3] = Lunes y Miércoles (1=Lunes, 7=Domingo)
+  scheduleTime?: string; // ej: "17:00"
+  scheduleDuration?: number; // minutos (ej: 60)
+  scheduleRate?: number; // precio habitual por clase (ej: 15)
+  scheduleSubjectId?: string; // ID asignatura habitual
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +78,8 @@ export interface ClassSession {
   rescheduledFromDate?: string; // Fecha original si la clase fue cambiada
   rescheduledFromTime?: string; // Hora original si la clase fue cambiada
   isRescheduled?: boolean; // Indica si ha sido reprogramada
+  isPaid?: boolean; // Indica si la clase está cobrada/pagada (se muestra en verde)
+  paymentId?: string; // ID del pago vinculado
   createdAt: string;
   updatedAt: string;
 }

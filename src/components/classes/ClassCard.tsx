@@ -22,6 +22,7 @@ interface ClassCardProps {
   student?: Student;
   subject?: Subject;
   onPress: () => void;
+  onTogglePaid?: () => void;
   showStudentName?: boolean;
 }
 
@@ -30,10 +31,12 @@ export default function ClassCard({
   student,
   subject,
   onPress,
+  onTogglePaid,
   showStudentName = true,
 }: ClassCardProps) {
+  const isPaid = session.isPaid === true;
+  const isCancelled = session.status === 'cancelled';
   const statusColor = getStatusColor(session.status);
-  const statusLabel = getStatusLabel(session.status);
   const locationLabel = getLocationLabel(session.location);
 
   const getLocationIcon = (loc: string): keyof typeof Ionicons.glyphMap => {
@@ -51,14 +54,19 @@ export default function ClassCard({
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={onPress}
-      style={styles.card}
+      style={[
+        styles.card,
+        isPaid && styles.cardPaid,
+        isCancelled && styles.cardCancelled,
+      ]}
     >
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.subjectRow}>
           <View
             style={[
               styles.colorDot,
-              { backgroundColor: subject?.color || Colors.primary },
+              { backgroundColor: isPaid ? '#10B981' : subject?.color || Colors.primary },
             ]}
           />
           <Text style={styles.subjectName} numberOfLines={1}>
@@ -66,31 +74,65 @@ export default function ClassCard({
           </Text>
         </View>
 
-        <Badge
-          text={statusLabel}
-          color={statusColor}
-          backgroundColor={`${statusColor}18`}
-          size="sm"
-        />
+        <View style={styles.badgesRow}>
+          {isCancelled ? (
+            <Badge
+              text="❌ Cancelada"
+              color={Colors.danger}
+              backgroundColor="#FEE2E2"
+              size="sm"
+            />
+          ) : isPaid ? (
+            <Badge
+              text="✓ Pagada"
+              color="#047857"
+              backgroundColor="#D1FAE5"
+              size="sm"
+            />
+          ) : (
+            <Badge
+              text="⏳ Pendiente"
+              color="#D97706"
+              backgroundColor="#FEF3C7"
+              size="sm"
+            />
+          )}
+        </View>
       </View>
 
+      {/* Student Name */}
       {showStudentName && student && (
         <View style={styles.studentRow}>
-          <Ionicons name="person-circle-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.studentName} numberOfLines={1}>
+          <Ionicons
+            name="person-circle-outline"
+            size={16}
+            color={isPaid ? '#047857' : Colors.textSecondary}
+          />
+          <Text style={[styles.studentName, isPaid && styles.studentNamePaid]} numberOfLines={1}>
             {student.firstName} {student.lastName}
           </Text>
         </View>
       )}
 
+      {/* Footer Info */}
       <View style={styles.footer}>
         <View style={styles.metaCol}>
           <View style={styles.metaRow}>
-            <Ionicons name="calendar-outline" size={13} color={Colors.textSecondary} />
-            <Text style={styles.metaText}>{formatDate(session.date)}</Text>
+            <Ionicons
+              name="calendar-outline"
+              size={13}
+              color={isPaid ? '#059669' : Colors.textSecondary}
+            />
+            <Text style={[styles.metaText, isPaid && styles.metaTextPaid]}>
+              {formatDate(session.date)}
+            </Text>
             <Text style={styles.metaDot}>•</Text>
-            <Ionicons name="time-outline" size={13} color={Colors.textSecondary} />
-            <Text style={styles.metaText}>
+            <Ionicons
+              name="time-outline"
+              size={13}
+              color={isPaid ? '#059669' : Colors.textSecondary}
+            />
+            <Text style={[styles.metaText, isPaid && styles.metaTextPaid]}>
               {session.startTime} - {session.endTime} ({formatDuration(session.duration)})
             </Text>
           </View>
@@ -104,7 +146,7 @@ export default function ClassCard({
             <Text style={styles.metaTextMuted}>{locationLabel}</Text>
           </View>
 
-          {session.status === 'cancelled' && (
+          {isCancelled && (
             <View style={styles.cancelReasonRow}>
               <Ionicons name="alert-circle-outline" size={13} color={Colors.danger} />
               <Text style={styles.cancelReasonText} numberOfLines={1}>
@@ -113,7 +155,7 @@ export default function ClassCard({
             </View>
           )}
 
-          {(session.isRescheduled || session.rescheduledFromDate) && session.status !== 'cancelled' && (
+          {(session.isRescheduled || session.rescheduledFromDate) && !isCancelled && (
             <View style={styles.rescheduledRow}>
               <Ionicons name="swap-horizontal" size={13} color={Colors.primary} />
               <Text style={styles.rescheduledText} numberOfLines={1}>
@@ -123,15 +165,45 @@ export default function ClassCard({
           )}
         </View>
 
-        <View style={styles.priceContainer}>
+        {/* Price & Quick Payment Action */}
+        <View style={styles.rightCol}>
           <Text
             style={[
               styles.priceText,
-              session.status === 'cancelled' && styles.priceTextCancelled,
+              isPaid && styles.priceTextPaid,
+              isCancelled && styles.priceTextCancelled,
             ]}
           >
-            {session.status === 'cancelled' ? '0,00 €' : formatCurrency(session.totalAmount)}
+            {isCancelled ? '0,00 €' : formatCurrency(session.totalAmount)}
           </Text>
+
+          {!isCancelled && onTogglePaid && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={(e) => {
+                e.stopPropagation();
+                onTogglePaid();
+              }}
+              style={[
+                styles.payActionButton,
+                isPaid ? styles.payActionButtonPaid : styles.payActionButtonPending,
+              ]}
+            >
+              <Ionicons
+                name={isPaid ? 'checkmark-circle' : 'cash-outline'}
+                size={14}
+                color={isPaid ? '#047857' : '#4F46E5'}
+              />
+              <Text
+                style={[
+                  styles.payActionText,
+                  isPaid ? styles.payActionTextPaid : styles.payActionTextPending,
+                ]}
+              >
+                {isPaid ? 'Pagada' : 'Cobrar'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -144,7 +216,24 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
     ...Shadows.sm,
+  },
+  cardPaid: {
+    backgroundColor: '#F0FDF4', // Verde suave
+    borderColor: '#A7F3D0',
+    borderLeftWidth: 5,
+    borderLeftColor: '#10B981', // Verde esmeralda vibrante
+  },
+  cardCancelled: {
+    backgroundColor: '#F9FAFB',
+    borderColor: Colors.borderLight,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.danger,
+    opacity: 0.85,
   },
   header: {
     flexDirection: 'row',
@@ -170,6 +259,11 @@ const styles = StyleSheet.create({
     color: Colors.text,
     flexShrink: 1,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   studentRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -180,6 +274,10 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '600',
     color: Colors.textSecondary,
+  },
+  studentNamePaid: {
+    color: '#065F46',
+    fontWeight: '700',
   },
   footer: {
     flexDirection: 'row',
@@ -199,45 +297,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  metaDot: {
-    fontSize: 10,
-    color: Colors.textTertiary,
-  },
   metaText: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
-    fontWeight: '500',
+  },
+  metaTextPaid: {
+    color: '#065F46',
+  },
+  metaDot: {
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
   },
   metaTextMuted: {
     fontSize: FontSizes.xs,
     color: Colors.textTertiary,
-  },
-  priceContainer: {
-    backgroundColor: Colors.surfaceVariant,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
-    marginLeft: Spacing.sm,
-  },
-  priceText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  priceTextCancelled: {
-    color: Colors.textTertiary,
-    textDecorationLine: 'line-through',
   },
   cancelReasonRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     marginTop: 2,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+    alignSelf: 'flex-start',
   },
   cancelReasonText: {
-    fontSize: 11,
+    fontSize: FontSizes.xs,
     color: Colors.danger,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   rescheduledRow: {
     flexDirection: 'row',
@@ -246,8 +335,51 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   rescheduledText: {
-    fontSize: 11,
+    fontSize: FontSizes.xs,
     color: Colors.primary,
-    fontWeight: '600',
+    fontWeight: '500',
+  },
+  rightCol: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  priceText: {
+    fontSize: FontSizes.md,
+    fontWeight: '800',
+    color: Colors.text,
+  },
+  priceTextPaid: {
+    color: '#059669', // Verde esmeralda
+  },
+  priceTextCancelled: {
+    color: Colors.textMuted,
+    textDecorationLine: 'line-through',
+  },
+  payActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  payActionButtonPaid: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  payActionButtonPending: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#C7D2FE',
+  },
+  payActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  payActionTextPaid: {
+    color: '#047857',
+  },
+  payActionTextPending: {
+    color: '#4F46E5',
   },
 });

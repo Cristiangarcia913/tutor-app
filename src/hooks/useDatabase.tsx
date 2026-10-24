@@ -64,6 +64,8 @@ interface DatabaseContextType {
     reason?: string
   ) => Promise<ClassSession | null>;
   deleteClass: (id: string) => Promise<void>;
+  toggleClassPaid: (id: string, method?: 'bizum' | 'efectivo') => Promise<{ classSession: ClassSession | null; payment?: Payment }>;
+  generateMonthClassesForStudent: (studentId: string, year: number, month: number) => Promise<ClassSession[]>;
   getUpcomingClasses: (limit?: number) => Promise<ClassSession[]>;
   getTodayClasses: () => Promise<ClassSession[]>;
 
@@ -194,6 +196,9 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         reason?: string
       ) => db.rescheduleClassSession(id, newDate, newStartTime, newEndTime, newDuration, reason),
       deleteClass: async (id: string) => db.deleteClassSession(id),
+      toggleClassPaid: async (id: string, method?: 'bizum' | 'efectivo') => db.toggleClassPaid(id, method),
+      generateMonthClassesForStudent: async (studentId: string, year: number, month: number) =>
+        db.generateMonthClassesForStudent(studentId, year, month),
       getUpcomingClasses: async (limit: number = 5) => db.getUpcomingClasses(limit),
       getTodayClasses: async () => db.getTodayClasses(),
 

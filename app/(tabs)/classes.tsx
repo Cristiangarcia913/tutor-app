@@ -6,18 +6,17 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useDatabase } from '../../src/hooks/useDatabase';
 import {
-  Card,
-  Badge,
-  EmptyState,
   SearchBar,
   FloatingActionButton,
   FilterChip,
+  EmptyState,
 } from '../../src/components/common';
 import ClassCard from '../../src/components/classes/ClassCard';
 import {
@@ -26,11 +25,16 @@ import {
   FontSizes,
   BorderRadius,
   Shadows,
+  formatCurrency,
 } from '../../src/constants/theme';
 import type { ClassSession, Student, Subject } from '../../src/types';
 
-type StatusFilter = 'all' | 'scheduled' | 'completed' | 'cancelled';
-type TimeFilter = 'all' | 'today' | 'week' | 'month';
+type PaymentFilterType = 'all' | 'paid' | 'pending' | 'cancelled';
+
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
 
 export default function ClassesScreen() {
   const insets = useSafeAreaInsets();
@@ -43,9 +47,15 @@ export default function ClassesScreen() {
   const [students, setStudents] = useState<Record<string, Student>>({});
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
 
+  // Monthly navigation state
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilterType>('all');
+
+  const selectedYear = selectedDate.getFullYear();
+  const selectedMonth = selectedDate.getMonth(); // 0-indexed
+  const selectedMonthStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+  const selectedMonthLabel = `${MONTH_NAMES[selectedMonth]} ${selectedYear}`;
 
   const loadData = useCallback(async () => {
     try {
@@ -91,30 +101,80 @@ export default function ClassesScreen() {
     setRefreshing(false);
   }, [loadData]);
 
-  // Date filtering logic
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const handlePrevMonth = () => {
+    setSelectedDate(new Date(selectedYear, selectedMonth - 1, 1));
+  };
 
+  const handleNextMonth = () => {
+    setSelectedDate(new Date(selectedYear, selectedMonth + 1, 1));
+  };
+
+  const handleToday = () => {
+    setSelectedDate(new Date());
+  };
+
+  // Toggle paid status for a session
+  const handleTogglePaid = async (session: ClassSession) => {
+    try {
+      await db.toggleClassPaid(session.id);
+      await loadData();
+    } catch (e) {
+      console.error('Error toggling paid state:', e);
+    }
+  };
+
+  // Classes of the selected month
+  const monthClasses = useMemo(() => {
+    return classes.filter((c) => c.date.startsWith(selectedMonthStr));
+  }, [classes, selectedMonthStr]);
+
+  // Monthly stats calculations
+  const monthStats = useMemo(() => {
+    let totalClasses = 0;
+    let paidCount = 0;
+    let pendingCount = 0;
+    let paidAmount = 0;
+    let pendingAmount = 0;
+    let totalAmount = 0;
+
+    monthClasses.forEach((c) => {
+      if (c.status === 'cancelled') return;
+      totalClasses++;
+      totalAmount += c.totalAmount;
+      if (c.isPaid) {
+        paidCount++;
+        paidAmount += c.totalAmount;
+      } else {
+        pendingCount++;
+        pendingAmount += c.totalAmount;
+      }
+    });
+
+    return {
+      totalClasses,
+      paidCount,
+      pendingCount,
+      paidAmount,
+      pendingAmount,
+      totalAmount,
+    };
+  }, [monthClasses]);
+
+  // Filtered classes according to payment filter and search query
   const filteredClasses = useMemo(() => {
-    return classes.filter((item) => {
-      // Status filter
-      if (statusFilter !== 'all' && item.status !== statusFilter) {
+    return monthClasses.filter((item) => {
+      // Payment & status filter
+      if (paymentFilter === 'paid' && (!item.isPaid || item.status === 'cancelled')) {
+        return false;
+      }
+      if (paymentFilter === 'pending' && (item.isPaid || item.status === 'cancelled')) {
+        return false;
+      }
+      if (paymentFilter === 'cancelled' && item.status !== 'cancelled') {
         return false;
       }
 
-      // Time filter
-      if (timeFilter === 'today') {
-        if (item.date !== todayStr) return false;
-      } else if (timeFilter === 'week') {
-        const itemDate = new Date(item.date);
-        const diffDays = (itemDate.getTime() - now.getTime()) / (1000 * 3600 * 24);
-        if (diffDays < -1 || diffDays > 7) return false;
-      } else if (timeFilter === 'month') {
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        if (!item.date.startsWith(currentMonth)) return false;
-      }
-
-      // Search query (matches student name or subject name)
+      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const student = students[item.studentId];
@@ -123,136 +183,175 @@ export default function ClassesScreen() {
           : '';
         const subject = subjects[item.subjectId];
         const subjectName = subject ? subject.name.toLowerCase() : '';
-
         return studentName.includes(q) || subjectName.includes(q);
       }
 
       return true;
-    });
-  }, [classes, statusFilter, timeFilter, searchQuery, students, subjects, todayStr]);
+    }).sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+  }, [monthClasses, paymentFilter, searchQuery, students, subjects]);
 
-  const statusFilters: { key: StatusFilter; label: string }[] = [
-    { key: 'all', label: 'Todas' },
-    { key: 'scheduled', label: 'Programadas' },
-    { key: 'completed', label: 'Completadas' },
-    { key: 'cancelled', label: 'Canceladas' },
+  const filterOptions: { key: PaymentFilterType; label: string; count?: number; color?: string }[] = [
+    { key: 'all', label: 'Todas', count: monthClasses.length },
+    { key: 'paid', label: '✓ Pagadas (Verdes)', count: monthStats.paidCount, color: '#059669' },
+    { key: 'pending', label: '⏳ Pendientes', count: monthStats.pendingCount, color: '#D97706' },
+    { key: 'cancelled', label: '❌ Canceladas', count: monthClasses.filter((c) => c.status === 'cancelled').length, color: Colors.danger },
   ];
 
-  const timeFilters: { key: TimeFilter; label: string }[] = [
-    { key: 'all', label: 'Todo el tiempo' },
-    { key: 'today', label: 'Hoy' },
-    { key: 'week', label: 'Esta semana' },
-    { key: 'month', label: 'Este mes' },
-  ];
+  if (loading) {
+    return (
+      <View style={[styles.centered, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
+      {/* Month Navigator Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Clases</Text>
-          <Text style={styles.subtitle}>
-            {filteredClasses.length} {filteredClasses.length === 1 ? 'clase encontrada' : 'clases encontradas'}
-          </Text>
+        <View style={styles.monthSelectorRow}>
+          <TouchableOpacity
+            style={styles.navArrowButton}
+            onPress={handlePrevMonth}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={20} color={Colors.text} />
+          </TouchableOpacity>
+
+          <View style={styles.monthTitleContainer}>
+            <Text style={styles.monthTitle}>{selectedMonthLabel}</Text>
+            <Text style={styles.monthSubtitle}>
+              {monthClasses.length} {monthClasses.length === 1 ? 'clase en el mes' : 'clases en el mes'}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.navArrowButton}
+            onPress={handleNextMonth}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-forward" size={20} color={Colors.text} />
+          </TouchableOpacity>
         </View>
 
-        <Badge
-          text={`${classes.filter((c) => c.status === 'scheduled').length} pendientes`}
-          color={Colors.primary}
-          backgroundColor={Colors.primaryBg}
-        />
+        {/* Quick 'Hoy' jump button if not current month */}
+        {selectedMonthStr !== `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}` && (
+          <TouchableOpacity style={styles.todayButton} onPress={handleToday}>
+            <Text style={styles.todayButtonText}>Ir a Mes Actual</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Search Bar */}
+      {/* Aesthetic Monthly Financial Bar */}
+      <View style={styles.statsSummaryCard}>
+        <View style={styles.statBox}>
+          <Text style={styles.statLabel}>Total Facturado</Text>
+          <Text style={styles.statValueTotal}>{formatCurrency(monthStats.totalAmount)}</Text>
+          <Text style={styles.statSubText}>{monthStats.totalClasses} clases</Text>
+        </View>
+
+        <View style={styles.statDivider} />
+
+        <View style={styles.statBox}>
+          <View style={styles.statLabelRow}>
+            <View style={[styles.miniDot, { backgroundColor: '#10B981' }]} />
+            <Text style={[styles.statLabel, { color: '#047857' }]}>Pagadas</Text>
+          </View>
+          <Text style={styles.statValuePaid}>{formatCurrency(monthStats.paidAmount)}</Text>
+          <Text style={styles.statSubTextPaid}>{monthStats.paidCount} pagadas</Text>
+        </View>
+
+        <View style={styles.statDivider} />
+
+        <View style={styles.statBox}>
+          <View style={styles.statLabelRow}>
+            <View style={[styles.miniDot, { backgroundColor: '#F59E0B' }]} />
+            <Text style={[styles.statLabel, { color: '#B45309' }]}>Pendientes</Text>
+          </View>
+          <Text style={styles.statValuePending}>{formatCurrency(monthStats.pendingAmount)}</Text>
+          <Text style={styles.statSubTextPending}>{monthStats.pendingCount} por cobrar</Text>
+        </View>
+      </View>
+
+      {/* Search Input */}
       <View style={styles.searchContainer}>
         <SearchBar
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Buscar por alumno o asignatura..."
+          placeholder="Buscar alumno o materia..."
         />
       </View>
 
-      {/* Filter Chips - Status */}
-      <View style={styles.chipsContainer}>
+      {/* Filter Tabs */}
+      <View style={styles.filterTabsContainer}>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={statusFilters}
+          data={filterOptions}
           keyExtractor={(item) => item.key}
-          contentContainerStyle={styles.chipsList}
-          renderItem={({ item }) => (
-            <FilterChip
-              label={item.label}
-              selected={statusFilter === item.key}
-              onPress={() => setStatusFilter(item.key)}
-            />
-          )}
+          contentContainerStyle={styles.filterTabsList}
+          renderItem={({ item }) => {
+            const isSelected = paymentFilter === item.key;
+            return (
+              <TouchableOpacity
+                onPress={() => setPaymentFilter(item.key)}
+                style={[
+                  styles.filterTab,
+                  isSelected && styles.filterTabSelected,
+                  isSelected && item.color ? { borderColor: item.color, backgroundColor: `${item.color}15` } : null,
+                ]}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.filterTabText,
+                    isSelected && styles.filterTabTextSelected,
+                    isSelected && item.color ? { color: item.color } : null,
+                  ]}
+                >
+                  {item.label} ({item.count ?? 0})
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
         />
       </View>
 
-      {/* Filter Chips - Time */}
-      <View style={styles.timeChipsContainer}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={timeFilters}
-          keyExtractor={(item) => item.key}
-          contentContainerStyle={styles.chipsList}
-          renderItem={({ item }) => (
-            <FilterChip
-              label={item.label}
-              selected={timeFilter === item.key}
-              onPress={() => setTimeFilter(item.key)}
-            />
-          )}
-        />
-      </View>
-
-      {/* List */}
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={filteredClasses}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + 90 },
-          ]}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={
-            <EmptyState
-              icon="calendar-outline"
-              title="No hay clases"
-              description={
-                searchQuery || statusFilter !== 'all' || timeFilter !== 'all'
-                  ? 'No se encontraron clases con los filtros actuales.'
-                  : 'Aún no tienes clases registradas. ¡Comienza programando una!'
-              }
-              actionLabel="Programar Clase"
-              onAction={() => router.push('/class/new')}
-            />
-          }
-          renderItem={({ item }) => (
-            <ClassCard
-              session={item}
-              student={students[item.studentId]}
-              subject={subjects[item.subjectId]}
-              onPress={() => router.push(`/class/${item.id}`)}
-              showStudentName={true}
-            />
-          )}
-        />
-      )}
+      {/* Classes List */}
+      <FlatList
+        data={filteredClasses}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        renderItem={({ item }) => (
+          <ClassCard
+            session={item}
+            student={students[item.studentId]}
+            subject={subjects[item.subjectId]}
+            onPress={() => router.push(`/class/${item.id}`)}
+            onTogglePaid={() => handleTogglePaid(item)}
+            showStudentName={true}
+          />
+        )}
+        ListEmptyComponent={
+          <EmptyState
+            icon="calendar-outline"
+            title="Sin clases este mes"
+            description={
+              searchQuery
+                ? 'No se encontraron clases que coincidan con la búsqueda.'
+                : `No tienes clases registradas para ${selectedMonthLabel}.`
+            }
+            actionLabel="Programar Nueva Clase"
+            onAction={() => router.push('/class/new')}
+          />
+        }
+      />
 
       {/* Floating Action Button */}
       <FloatingActionButton
-        onPress={() => router.push('/class/new')}
         icon="add"
+        onPress={() => router.push('/class/new')}
       />
     </View>
   );
@@ -263,45 +362,171 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
-  },
-  title: {
-    fontSize: FontSizes.xxxl,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  subtitle: {
-    fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  searchContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.xs,
-  },
-  chipsContainer: {
-    paddingTop: Spacing.xs,
-  },
-  timeChipsContainer: {
-    paddingVertical: 4,
-  },
-  chipsList: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.xs,
-  },
-  listContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
-  },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Colors.background,
+  },
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  monthSelectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surface,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.sm,
+  },
+  navArrowButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthTitleContainer: {
+    alignItems: 'center',
+  },
+  monthTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '800',
+    color: Colors.text,
+  },
+  monthSubtitle: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  todayButton: {
+    alignSelf: 'center',
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primaryBg,
+  },
+  todayButtonText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  statsSummaryCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  miniDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  statValueTotal: {
+    fontSize: FontSizes.md,
+    fontWeight: '800',
+    color: Colors.text,
+  },
+  statValuePaid: {
+    fontSize: FontSizes.md,
+    fontWeight: '800',
+    color: '#059669', // Verde
+  },
+  statValuePending: {
+    fontSize: FontSizes.md,
+    fontWeight: '800',
+    color: '#D97706', // Ámbar
+  },
+  statSubText: {
+    fontSize: 10,
+    color: Colors.textTertiary,
+    marginTop: 2,
+  },
+  statSubTextPaid: {
+    fontSize: 10,
+    color: '#047857',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  statSubTextPending: {
+    fontSize: 10,
+    color: '#B45309',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 34,
+    backgroundColor: Colors.borderLight,
+  },
+  searchContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+  },
+  filterTabsContainer: {
+    paddingVertical: Spacing.xs,
+  },
+  filterTabsList: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  filterTab: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterTabSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  filterTabText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  filterTabTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  listContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xs,
+    paddingBottom: 90,
   },
 });

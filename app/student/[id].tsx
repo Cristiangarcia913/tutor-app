@@ -106,6 +106,48 @@ export default function StudentDetailScreen() {
     loadData();
   }, [loadData]);
 
+  const [generatingClasses, setGeneratingClasses] = useState(false);
+
+  const handleTogglePaid = async (session: ClassSession) => {
+    try {
+      await db.toggleClassPaid(session.id);
+      await loadData();
+    } catch (e) {
+      console.error('Error toggling class paid status:', e);
+    }
+  };
+
+  const handleGenerateMonthClasses = async (targetMonthOffset = 0) => {
+    if (!student || !student.scheduleDays || student.scheduleDays.length === 0) {
+      Alert.alert(
+        'Sin horario asignado',
+        'Edita el alumno para configurar qué días de la semana tiene clase y su hora.'
+      );
+      return;
+    }
+    setGeneratingClasses(true);
+    try {
+      const now = new Date();
+      let targetYear = now.getFullYear();
+      let targetMonth = now.getMonth() + 1 + targetMonthOffset;
+      if (targetMonth > 12) {
+        targetMonth = 1;
+        targetYear++;
+      }
+      const created = await db.generateMonthClassesForStudent(student.id, targetYear, targetMonth);
+      Alert.alert(
+        '¡Clases Programadas!',
+        `Se han programado automáticamente ${created.length} clases para el mes según su horario habitual.`
+      );
+      await loadData();
+    } catch (e) {
+      console.error('Error generating classes:', e);
+      Alert.alert('Error', 'No se pudieron generar las clases.');
+    } finally {
+      setGeneratingClasses(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!id) return;
     try {
@@ -259,6 +301,59 @@ export default function StudentDetailScreen() {
           </View>
         </Card>
 
+        {/* Horario Habitual Asignado Card */}
+        <Card style={styles.scheduleCard}>
+          <View style={styles.scheduleCardHeader}>
+            <View style={styles.scheduleIconCircle}>
+              <Ionicons name="calendar" size={20} color="#4F46E5" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.scheduleCardTitle}>Horario Semanal Asignado</Text>
+              <Text style={styles.scheduleCardSub}>
+                {student.scheduleDays && student.scheduleDays.length > 0
+                  ? `Clases los ${student.scheduleDays
+                      .map((d) => ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'][d - 1])
+                      .join(' y ')} a las ${student.scheduleTime || '17:00'} (${student.scheduleDuration || 60}m)`
+                  : 'Sin días semanales fijos asignados aún.'}
+              </Text>
+            </View>
+          </View>
+
+          {student.scheduleDays && student.scheduleDays.length > 0 ? (
+            <View style={styles.scheduleActionsRow}>
+              <View style={styles.scheduleRateBadge}>
+                <Text style={styles.scheduleRateBadgeText}>
+                  {formatCurrency(student.scheduleRate || 15)} / clase
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.generateClassesButton}
+                activeOpacity={0.85}
+                disabled={generatingClasses}
+                onPress={() => handleGenerateMonthClasses(0)}
+              >
+                {generatingClasses ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="sparkles" size={14} color="#FFFFFF" />
+                    <Text style={styles.generateClassesButtonText}>Programar Mes Actual</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.configScheduleBtn}
+              onPress={() => router.push(`/student/edit/${id}`)}
+            >
+              <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
+              <Text style={styles.configScheduleBtnText}>Asignar días y hora de clase</Text>
+            </TouchableOpacity>
+          )}
+        </Card>
+
         {/* WhatsApp Monthly Breakdown & Billing Card */}
         <Card style={styles.whatsAppCard}>
           <View style={styles.whatsAppCardHeader}>
@@ -373,6 +468,7 @@ export default function StudentDetailScreen() {
               subject={subjects[session.subjectId]}
               showStudentName={false}
               onPress={() => router.push(`/class/${session.id}`)}
+              onTogglePaid={() => handleTogglePaid(session)}
             />
           ))
         )}
@@ -649,5 +745,82 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  scheduleCard: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    padding: Spacing.md,
+  },
+  scheduleCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  scheduleIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primaryBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scheduleCardTitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: '800',
+    color: Colors.text,
+  },
+  scheduleCardSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  scheduleActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  scheduleRateBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+  },
+  scheduleRateBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  generateClassesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+  },
+  generateClassesButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  configScheduleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing.sm,
+    paddingVertical: 6,
+  },
+  configScheduleBtnText: {
+    color: Colors.primary,
+    fontWeight: '700',
+    fontSize: 12,
   },
 });

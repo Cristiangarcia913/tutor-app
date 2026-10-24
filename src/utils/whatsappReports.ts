@@ -72,14 +72,16 @@ export function buildMonthlyWhatsAppReport(params: {
         ? parseInt(cls.rescheduledFromDate.split('-')[2], 10)
         : '';
       const originNote = originalDay ? ` (cambiada del día ${originalDay})` : '';
+      const paidNote = cls.isPaid ? ' [✓ Pagada]' : '';
       lines.push(
-        `• Día ${dayNumber} (${dayName}): 🔄 Clase cambiada a las ${cls.startTime}${originNote} - ${cls.totalAmount.toFixed(2).replace('.', ',')} €`
+        `• Día ${dayNumber} (${dayName}): 🔄 Clase cambiada a las ${cls.startTime}${originNote} - ${cls.totalAmount.toFixed(2).replace('.', ',')} €${paidNote}`
       );
     } else {
       classesCount++;
       totalAmount += cls.totalAmount;
+      const paidNote = cls.isPaid ? ' [✓ Pagada]' : '';
       lines.push(
-        `• Día ${dayNumber} (${dayName}): Clase ${cls.startTime} - ${cls.totalAmount.toFixed(2).replace('.', ',')} €`
+        `• Día ${dayNumber} (${dayName}): Clase ${cls.startTime} - ${cls.totalAmount.toFixed(2).replace('.', ',')} €${paidNote}`
       );
     }
   }

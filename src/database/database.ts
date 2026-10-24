@@ -745,8 +745,44 @@ export const updateClassSession = async (
  * Delete a class session
  */
 export const deleteClassSession = async (id: string): Promise<void> => {
+  if (Platform.OS === 'web') {
+    return web.webDeleteClass(id);
+  }
   const database = await getDb();
   await database.runAsync('DELETE FROM class_sessions WHERE id = ?', id);
+};
+
+export const toggleClassPaid = async (
+  id: string,
+  method: 'bizum' | 'efectivo' = 'bizum'
+): Promise<{ classSession: ClassSession | null; payment?: Payment }> => {
+  if (Platform.OS === 'web') {
+    return web.webToggleClassPaid(id, method);
+  }
+  const current = await getClassSessionById(id);
+  if (!current) return { classSession: null };
+  const newStatus = !current.isPaid;
+  const database = await getDb();
+  await database.runAsync(
+    'UPDATE class_sessions SET isPaid = ?, updatedAt = ? WHERE id = ?',
+    newStatus ? 1 : 0,
+    new Date().toISOString(),
+    id
+  );
+  current.isPaid = newStatus;
+  return { classSession: current };
+};
+
+export const generateMonthClassesForStudent = async (
+  studentId: string,
+  year: number,
+  month: number
+): Promise<ClassSession[]> => {
+  if (Platform.OS === 'web') {
+    return web.webGenerateMonthClassesForStudent(studentId, year, month);
+  }
+  // Native fallback delegates to web logic or batch insert
+  return web.webGenerateMonthClassesForStudent(studentId, year, month);
 };
 
 /**
@@ -813,6 +849,8 @@ const mapRowToClassSession = (row: any): ClassSession => ({
   rescheduledFromDate: row.rescheduledFromDate || undefined,
   rescheduledFromTime: row.rescheduledFromTime || undefined,
   isRescheduled: row.isRescheduled === 1 || Boolean(row.rescheduledFromDate),
+  isPaid: row.isPaid === 1,
+  paymentId: row.paymentId || undefined,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 });

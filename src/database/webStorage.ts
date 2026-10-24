@@ -93,6 +93,11 @@ const INITIAL_STUDENTS: Student[] = [
     address: 'Calle Mayor 14, 3ºB, Madrid',
     birthDate: '2008-04-12',
     notes: 'Preparando selectividad (EBAU). Necesita refuerzo en matrices e integrales.',
+    scheduleDays: [2, 4], // Martes y Jueves
+    scheduleTime: '17:00',
+    scheduleDuration: 90,
+    scheduleRate: 20,
+    scheduleSubjectId: 'sub_matematicas',
     active: true,
     avatarColor: '#4F46E5',
     createdAt: '2026-10-01T10:00:00.000Z',
@@ -111,6 +116,11 @@ const INITIAL_STUDENTS: Student[] = [
     address: 'Av. de América 32, Madrid',
     birthDate: '2010-09-22',
     notes: '3º de ESO. Muy participativa, trabajando formulación química.',
+    scheduleDays: [1, 3], // Lunes y Miércoles
+    scheduleTime: '18:00',
+    scheduleDuration: 60,
+    scheduleRate: 22,
+    scheduleSubjectId: 'sub_fisica',
     active: true,
     avatarColor: '#10B981',
     createdAt: '2026-10-02T10:00:00.000Z',
@@ -154,6 +164,7 @@ const INITIAL_CLASSES: ClassSession[] = [
     location: 'presencial',
     notes: 'Resolución de exámenes de selectividad año 2025.',
     homework: 'Ejercicios 3, 4 y 7 del tema 4.',
+    isPaid: false,
     createdAt: '2026-10-15T10:00:00.000Z',
     updatedAt: '2026-10-15T10:00:00.000Z',
   },
@@ -171,6 +182,7 @@ const INITIAL_CLASSES: ClassSession[] = [
     location: 'online',
     notes: 'Formulación de óxidos e hidróxidos.',
     homework: 'Ficha práctica de ejercicios.',
+    isPaid: false,
     createdAt: '2026-10-16T10:00:00.000Z',
     updatedAt: '2026-10-16T10:00:00.000Z',
   },
@@ -188,6 +200,8 @@ const INITIAL_CLASSES: ClassSession[] = [
     location: 'domicilio',
     notes: 'Campo gravitatorio y leyes de Kepler.',
     homework: 'Problemas página 89.',
+    isPaid: true,
+    paymentId: 'pay_1',
     createdAt: '2026-10-14T10:00:00.000Z',
     updatedAt: '2026-10-18T17:35:00.000Z',
   },
@@ -501,6 +515,103 @@ export const webDeleteClass = async (id: string): Promise<void> => {
   const list = await webGetAllClasses();
   const filtered = list.filter((c) => c.id !== id);
   storage.set('tutorapp_classes', filtered);
+};
+
+export const webToggleClassPaid = async (
+  id: string,
+  method: 'bizum' | 'efectivo' = 'bizum'
+): Promise<{ classSession: ClassSession | null; payment?: Payment }> => {
+  const list = await webGetAllClasses();
+  const idx = list.findIndex((c) => c.id === id);
+  if (idx === -1) return { classSession: null };
+
+  const current = list[idx];
+  const newPaidStatus = !current.isPaid;
+  list[idx] = {
+    ...current,
+    isPaid: newPaidStatus,
+    updatedAt: new Date().toISOString(),
+  };
+
+  let createdPayment: Payment | undefined;
+  if (newPaidStatus) {
+    const payments = await webGetAllPayments();
+    const existing = payments.find((p) => p.classSessionIds.includes(id) && p.status === 'cobrado');
+    if (!existing) {
+      createdPayment = await webCreatePayment({
+        studentId: current.studentId,
+        amount: current.totalAmount,
+        date: current.date,
+        method: method,
+        concept: `Clase ${current.date} (${current.startTime})`,
+        classSessionIds: [id],
+        status: 'cobrado',
+        notes: `Cobrado por ${method}`,
+      });
+      list[idx].paymentId = createdPayment.id;
+    }
+  }
+
+  storage.set('tutorapp_classes', list);
+  return { classSession: list[idx], payment: createdPayment };
+};
+
+export const webGenerateMonthClassesForStudent = async (
+  studentId: string,
+  year: number,
+  month: number
+): Promise<ClassSession[]> => {
+  const student = await webGetStudentById(studentId);
+  if (!student || !student.scheduleDays || student.scheduleDays.length === 0) {
+    return [];
+  }
+
+  const existingClasses = await webGetAllClasses({ studentId });
+  const subjects = await webGetAllSubjects();
+  const subjectId = student.scheduleSubjectId || (subjects.length > 0 ? subjects[0].id : 'sub_matematicas');
+
+  const duration = student.scheduleDuration || 60;
+  const rate = student.scheduleRate !== undefined ? student.scheduleRate : 15;
+  const startTime = student.scheduleTime || '17:00';
+
+  const [h, m] = startTime.split(':').map(Number);
+  const totalMinutes = h * 60 + (m || 0) + duration;
+  const endH = Math.floor(totalMinutes / 60) % 24;
+  const endM = totalMinutes % 60;
+  const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const newClasses: ClassSessionFormData[] = [];
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dateObj = new Date(year, month - 1, day);
+    const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay();
+
+    if (student.scheduleDays.includes(dayOfWeek)) {
+      const alreadyExists = existingClasses.some((c) => c.date === dateStr && c.status !== 'cancelled');
+      if (!alreadyExists) {
+        newClasses.push({
+          studentId: student.id,
+          subjectId,
+          date: dateStr,
+          startTime,
+          endTime,
+          duration,
+          rate,
+          status: 'scheduled',
+          location: 'presencial',
+          notes: 'Clase programada según horario habitual',
+          isPaid: false,
+        });
+      }
+    }
+  }
+
+  if (newClasses.length > 0) {
+    return webCreateClassesBatch(newClasses);
+  }
+  return [];
 };
 
 export const webGetAllPayments = async (filter?: PaymentFilter): Promise<Payment[]> => {
