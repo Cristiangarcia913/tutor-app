@@ -530,6 +530,7 @@ export const webToggleClassPaid = async (
   list[idx] = {
     ...current,
     isPaid: newPaidStatus,
+    status: newPaidStatus ? 'completed' : current.status,
     updatedAt: new Date().toISOString(),
   };
 
@@ -550,6 +551,11 @@ export const webToggleClassPaid = async (
       });
       list[idx].paymentId = createdPayment.id;
     }
+  } else if (current.paymentId) {
+    const payments = await webGetAllPayments();
+    const filteredPayments = payments.filter((p) => p.id !== current.paymentId);
+    storage.set('tutorapp_payments', filteredPayments);
+    list[idx].paymentId = undefined;
   }
 
   storage.set('tutorapp_classes', list);
@@ -656,8 +662,51 @@ export const webCreatePayment = async (data: PaymentFormData): Promise<Payment> 
     id: generateId(),
     createdAt: new Date().toISOString(),
   };
+
+  // Sincronizar automáticamente con las clases del alumno
+  const classesList = await webGetAllClasses();
+  let classesModified = false;
+
+  if (created.status === 'cobrado') {
+    if (created.classSessionIds && created.classSessionIds.length > 0) {
+      classesList.forEach((c) => {
+        if (created.classSessionIds.includes(c.id)) {
+          c.isPaid = true;
+          c.paymentId = created.id;
+          c.status = 'completed';
+          c.updatedAt = new Date().toISOString();
+          classesModified = true;
+        }
+      });
+    } else {
+      // Auto-asociar clases pendientes más antiguas de este alumno hasta cubrir el importe
+      let remaining = created.amount;
+      const unpaid = classesList
+        .filter((c) => c.studentId === created.studentId && !c.isPaid && c.status !== 'cancelled')
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const matchedIds: string[] = [];
+      for (const cls of unpaid) {
+        if (remaining <= 0) break;
+        cls.isPaid = true;
+        cls.paymentId = created.id;
+        cls.status = 'completed';
+        cls.updatedAt = new Date().toISOString();
+        matchedIds.push(cls.id);
+        remaining -= cls.totalAmount;
+        classesModified = true;
+      }
+      if (matchedIds.length > 0) {
+        created.classSessionIds = matchedIds;
+      }
+    }
+  }
+
   list.unshift(created);
   storage.set('tutorapp_payments', list);
+  if (classesModified) {
+    storage.set('tutorapp_classes', classesList);
+  }
   return created;
 };
 
@@ -668,15 +717,90 @@ export const webUpdatePayment = async (
   const list = await webGetAllPayments();
   const idx = list.findIndex((p) => p.id === id);
   if (idx === -1) return null;
-  list[idx] = { ...list[idx], ...data };
+
+  const prevPayment = list[idx];
+  const updatedPayment: Payment = { ...prevPayment, ...data };
+  list[idx] = updatedPayment;
+
+  // Sincronizar estado de las clases
+  const classesList = await webGetAllClasses();
+  let classesModified = false;
+
+  if (data.status !== undefined && data.status !== prevPayment.status) {
+    if (data.status === 'cobrado') {
+      if (updatedPayment.classSessionIds && updatedPayment.classSessionIds.length > 0) {
+        classesList.forEach((c) => {
+          if (updatedPayment.classSessionIds.includes(c.id)) {
+            c.isPaid = true;
+            c.paymentId = id;
+            c.status = 'completed';
+            c.updatedAt = new Date().toISOString();
+            classesModified = true;
+          }
+        });
+      } else {
+        let remaining = updatedPayment.amount;
+        const unpaid = classesList
+          .filter((c) => c.studentId === updatedPayment.studentId && !c.isPaid && c.status !== 'cancelled')
+          .sort((a, b) => a.date.localeCompare(b.date));
+        const matchedIds: string[] = [];
+        for (const cls of unpaid) {
+          if (remaining <= 0) break;
+          cls.isPaid = true;
+          cls.paymentId = id;
+          cls.status = 'completed';
+          cls.updatedAt = new Date().toISOString();
+          matchedIds.push(cls.id);
+          remaining -= cls.totalAmount;
+          classesModified = true;
+        }
+        if (matchedIds.length > 0) {
+          updatedPayment.classSessionIds = matchedIds;
+          list[idx].classSessionIds = matchedIds;
+        }
+      }
+    } else {
+      // Si pasa a pendiente o cancelado, desmarcar de pagado en las clases
+      classesList.forEach((c) => {
+        if (c.paymentId === id || (updatedPayment.classSessionIds && updatedPayment.classSessionIds.includes(c.id))) {
+          c.isPaid = false;
+          c.paymentId = undefined;
+          c.updatedAt = new Date().toISOString();
+          classesModified = true;
+        }
+      });
+    }
+  }
+
   storage.set('tutorapp_payments', list);
-  return list[idx];
+  if (classesModified) {
+    storage.set('tutorapp_classes', classesList);
+  }
+
+  return updatedPayment;
 };
 
 export const webDeletePayment = async (id: string): Promise<void> => {
   const list = await webGetAllPayments();
+  const paymentToDelete = list.find((p) => p.id === id);
   const filtered = list.filter((p) => p.id !== id);
   storage.set('tutorapp_payments', filtered);
+
+  // Desvincular de las clases asociadas
+  const classesList = await webGetAllClasses();
+  let classesModified = false;
+  classesList.forEach((c) => {
+    if (c.paymentId === id || (paymentToDelete?.classSessionIds && paymentToDelete.classSessionIds.includes(c.id))) {
+      c.isPaid = false;
+      c.paymentId = undefined;
+      c.updatedAt = new Date().toISOString();
+      classesModified = true;
+    }
+  });
+
+  if (classesModified) {
+    storage.set('tutorapp_classes', classesList);
+  }
 };
 
 export const webGetSettings = async (): Promise<AppSettings> => {
@@ -743,7 +867,7 @@ export const webGetStudentBalances = async (): Promise<StudentBalance[]> => {
   const payments = await webGetAllPayments();
 
   return students.map((student) => {
-    const studentClasses = classes.filter((c) => c.studentId === student.id && c.status === 'completed');
+    const studentClasses = classes.filter((c) => c.studentId === student.id && c.status !== 'cancelled');
     const studentPayments = payments.filter((p) => p.studentId === student.id && p.status === 'cobrado');
 
     const totalCharged = studentClasses.reduce((sum, c) => sum + c.totalAmount, 0);

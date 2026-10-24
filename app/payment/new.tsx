@@ -28,7 +28,7 @@ import {
   BorderRadius,
   formatCurrency,
 } from '../../src/constants/theme';
-import type { PaymentFormData, Student } from '../../src/types';
+import type { PaymentFormData, Student, ClassSession } from '../../src/types';
 
 export default function NewPaymentScreen() {
   const insets = useSafeAreaInsets();
@@ -51,20 +51,50 @@ export default function NewPaymentScreen() {
   const [concept, setConcept] = useState('Clases particulares');
   const [notes, setNotes] = useState('');
 
+  const [unpaidClasses, setUnpaidClasses] = useState<ClassSession[]>([]);
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const loadBalance = useCallback(async (sid: string) => {
+  const loadBalanceAndClasses = useCallback(async (sid: string) => {
     if (!sid) {
       setStudentBalance(null);
+      setUnpaidClasses([]);
+      setSelectedClassIds([]);
       return;
     }
     try {
-      const bal = await db.getStudentBalance(sid);
+      const [bal, studentClasses] = await Promise.all([
+        db.getStudentBalance(sid),
+        db.getClassesByStudent(sid),
+      ]);
       setStudentBalance(bal);
+
+      const unpaid = studentClasses.filter((c) => !c.isPaid && c.status !== 'cancelled');
+      setUnpaidClasses(unpaid);
+
+      if (params.amount === undefined || params.amount === null || params.amount === '') {
+        const ids = unpaid.map((c) => c.id);
+        setSelectedClassIds(ids);
+        const total = unpaid.reduce((sum, c) => sum + c.totalAmount, 0);
+        if (total > 0) {
+          setAmount(String(total));
+        }
+      } else {
+        const targetAmount = parseFloat(String(params.amount));
+        let accumulated = 0;
+        const matched: string[] = [];
+        for (const c of unpaid) {
+          if (accumulated + c.totalAmount <= targetAmount + 0.01) {
+            matched.push(c.id);
+            accumulated += c.totalAmount;
+          }
+        }
+        setSelectedClassIds(matched.length > 0 ? matched : unpaid.map((c) => c.id));
+      }
     } catch (e) {
-      console.error('Error fetching balance:', e);
+      console.error('Error fetching balance and classes:', e);
     }
-  }, [db]);
+  }, [db, params.amount]);
 
   useEffect(() => {
     async function loadStudents() {
@@ -79,7 +109,7 @@ export default function NewPaymentScreen() {
 
         if (initialStudentId) {
           setStudentId(initialStudentId);
-          loadBalance(initialStudentId);
+          loadBalanceAndClasses(initialStudentId);
         }
       } catch (err) {
         console.error('Failed to load students:', err);
@@ -89,7 +119,7 @@ export default function NewPaymentScreen() {
     }
 
     loadStudents();
-  }, [db, params.studentId, loadBalance]);
+  }, [db, params.studentId, loadBalanceAndClasses]);
 
   useEffect(() => {
     if (params.amount !== undefined && params.amount !== null && params.amount !== '') {
@@ -100,14 +130,34 @@ export default function NewPaymentScreen() {
   useEffect(() => {
     if (params.studentId) {
       setStudentId(params.studentId);
-      loadBalance(params.studentId);
+      loadBalanceAndClasses(params.studentId);
     }
-  }, [params.studentId, loadBalance]);
+  }, [params.studentId, loadBalanceAndClasses]);
 
   const handleStudentSelect = (id: string) => {
     setStudentId(id);
     setErrors((prev) => ({ ...prev, studentId: '' }));
-    loadBalance(id);
+    loadBalanceAndClasses(id);
+  };
+
+  const toggleClassSelection = (classId: string) => {
+    setSelectedClassIds((prev) => {
+      const next = prev.includes(classId)
+        ? prev.filter((id) => id !== classId)
+        : [...prev, classId];
+      const newTotal = unpaidClasses
+        .filter((c) => next.includes(c.id))
+        .reduce((sum, c) => sum + c.totalAmount, 0);
+      setAmount(newTotal > 0 ? String(newTotal) : '');
+      return next;
+    });
+  };
+
+  const selectAllClasses = () => {
+    const ids = unpaidClasses.map((c) => c.id);
+    setSelectedClassIds(ids);
+    const total = unpaidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+    setAmount(total > 0 ? String(total) : '');
   };
 
   const handleSubmit = async () => {
@@ -136,7 +186,7 @@ export default function NewPaymentScreen() {
         status,
         concept: concept.trim() || 'Pago de clases particulares',
         notes: notes.trim(),
-        classSessionIds: [],
+        classSessionIds: selectedClassIds,
       };
 
       await db.createPayment(data);
@@ -246,6 +296,51 @@ export default function NewPaymentScreen() {
               )}
             </View>
           </Card>
+        )}
+
+        {/* Clases Pendientes a Vincular */}
+        {unpaidClasses.length > 0 && (
+          <View style={styles.pendingClassesSection}>
+            <View style={styles.pendingClassesHeader}>
+              <Text style={styles.pendingClassesTitle}>
+                Clases a marcar como pagadas ({selectedClassIds.length}/{unpaidClasses.length}):
+              </Text>
+              <TouchableOpacity onPress={selectAllClasses} activeOpacity={0.7}>
+                <Text style={styles.selectAllText}>Marcar todas</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.pendingClassesList}>
+              {unpaidClasses.map((c) => {
+                const isSelected = selectedClassIds.includes(c.id);
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    onPress={() => toggleClassSelection(c.id)}
+                    style={[
+                      styles.pendingClassItem,
+                      isSelected && styles.pendingClassItemSelected,
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={isSelected ? 'checkbox' : 'square-outline'}
+                      size={20}
+                      color={isSelected ? Colors.success : Colors.textTertiary}
+                    />
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={[styles.pendingClassDate, isSelected && styles.pendingClassDateSelected]}>
+                        {c.date} • {c.startTime} ({c.duration} min)
+                      </Text>
+                    </View>
+                    <Text style={[styles.pendingClassPrice, isSelected && styles.pendingClassPriceSelected]}>
+                      {formatCurrency(c.totalAmount)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
         )}
 
         {/* Importe */}
@@ -448,6 +543,64 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  pendingClassesSection: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  pendingClassesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  pendingClassesTitle: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  selectAllText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  pendingClassesList: {
+    gap: 6,
+  },
+  pendingClassItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  pendingClassItemSelected: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  pendingClassDate: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  pendingClassDateSelected: {
+    color: '#15803D',
+    fontWeight: '700',
+  },
+  pendingClassPrice: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  pendingClassPriceSelected: {
+    color: '#15803D',
   },
   submitContainer: {
     marginTop: Spacing.lg,

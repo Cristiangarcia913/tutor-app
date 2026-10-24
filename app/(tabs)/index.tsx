@@ -49,19 +49,27 @@ export default function DashboardScreen() {
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [upcomingClasses, setUpcomingClasses] = useState<ClassSession[]>([]);
+  const [todayClasses, setTodayClasses] = useState<ClassSession[]>([]);
   const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
   const [monthlyIncome, setMonthlyIncome] = useState<{ month: string; amount: number }[]>([]);
 
   const [students, setStudents] = useState<Record<string, Student>>({});
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
 
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       const [
         dashStats,
         settingsData,
-        upcoming,
+        allClasses,
         recent,
         income,
         studentsList,
@@ -69,7 +77,7 @@ export default function DashboardScreen() {
       ] = await Promise.all([
         db.loadDashboardStats(),
         db.loadSettings(),
-        db.getUpcomingClasses(5),
+        db.loadClasses(),
         db.getRecentPayments(5),
         db.getMonthlyIncome(6),
         db.loadStudents(),
@@ -88,9 +96,16 @@ export default function DashboardScreen() {
       });
       setSubjects(subjectMap);
 
+      // Filtrar estrictamente solo las clases de hoy
+      const now = new Date();
+      const currentTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const classesForToday = allClasses
+        .filter((c) => c.date === currentTodayStr && c.status !== 'cancelled')
+        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
       setStats(dashStats);
       setSettings(settingsData);
-      setUpcomingClasses(upcoming);
+      setTodayClasses(classesForToday);
       setRecentPayments(recent);
       setMonthlyIncome(income);
     } catch (error) {
@@ -211,7 +226,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Quick Action Shortcuts */}
+        {/* Quick Action Shortcuts (Nueva Clase, Cobrar, Nuevo Alumno) */}
         <View style={styles.shortcutsRow}>
           <TouchableOpacity
             style={styles.shortcutBtn}
@@ -242,45 +257,35 @@ export default function DashboardScreen() {
             </View>
             <Text style={styles.shortcutText}>Nuevo Alumno</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.shortcutBtn}
-            onPress={() => router.push('/subject/manage')}
-          >
-            <View style={[styles.shortcutIcon, { backgroundColor: '#FFFBEB' }]}>
-              <Ionicons name="book" size={22} color={Colors.warning} />
-            </View>
-            <Text style={styles.shortcutText}>Asignaturas</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Alerta Destacada de Próxima Clase (Recordatorio + Ubicación) */}
-        {upcomingClasses.length > 0 && (
+        {/* Alerta Destacada de Próxima Clase de Hoy */}
+        {todayClasses.length > 0 && (
           <ClassReminderAlert
-            session={upcomingClasses[0]}
-            student={students[upcomingClasses[0].studentId]}
-            subject={subjects[upcomingClasses[0].subjectId]}
+            session={todayClasses[0]}
+            student={students[todayClasses[0].studentId]}
+            subject={subjects[todayClasses[0].subjectId]}
             teacherName={teacherName}
           />
         )}
 
-        {/* Upcoming Classes Section */}
+        {/* Clases de Hoy Section */}
         <SectionHeader
-          title="Próximas Clases"
-          actionLabel="Ver todas"
+          title={`Clases de Hoy (${todayClasses.length})`}
+          actionLabel="Ver Calendario"
           onAction={() => router.push('/(tabs)/classes')}
         />
 
-        {upcomingClasses.length === 0 ? (
+        {todayClasses.length === 0 ? (
           <EmptyState
             icon="calendar-outline"
-            title="Sin clases programadas"
-            description="No tienes clases programadas para los próximos días."
+            title="Sin clases para hoy"
+            description="Hoy no tienes clases programadas. ¡Disfruta de tu día o programa una nueva clase!"
             actionLabel="Programar Clase"
-            onAction={() => router.push('/class/new')}
+            onAction={() => router.push(`/class/new?date=${todayStr}`)}
           />
         ) : (
-          upcomingClasses.map((cls) => (
+          todayClasses.map((cls) => (
             <ClassCard
               key={cls.id}
               session={cls}
