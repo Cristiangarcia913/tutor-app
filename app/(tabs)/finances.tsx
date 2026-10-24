@@ -22,7 +22,7 @@ import {
 } from '../../src/components/common';
 import PaymentCard from '../../src/components/finances/PaymentCard';
 import IncomeChart from '../../src/components/finances/IncomeChart';
-import RoleSwitcherBar from '../../src/components/common/RoleSwitcherBar';
+import WhatsAppReportModal from '../../src/components/finances/WhatsAppReportModal';
 import {
   Colors,
   Spacing,
@@ -31,7 +31,7 @@ import {
   Shadows,
   formatCurrency,
 } from '../../src/constants/theme';
-import type { Payment, Student, StudentBalance } from '../../src/types';
+import type { Payment, Student, StudentBalance, ClassSession, AppSettings } from '../../src/types';
 
 type ActiveTab = 'payments' | 'summary';
 type MethodFilter = 'all' | 'bizum' | 'efectivo';
@@ -49,16 +49,23 @@ export default function FinancesScreen() {
   const [students, setStudents] = useState<Record<string, Student>>({});
   const [studentBalances, setStudentBalances] = useState<StudentBalance[]>([]);
   const [monthlyIncome, setMonthlyIncome] = useState<{ month: string; amount: number }[]>([]);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  // WhatsApp Report modal state
+  const [selectedStudentForWA, setSelectedStudentForWA] = useState<Student | null>(null);
+  const [selectedClassesForWA, setSelectedClassesForWA] = useState<ClassSession[]>([]);
+  const [showWAModal, setShowWAModal] = useState(false);
 
   const [methodFilter, setMethodFilter] = useState<MethodFilter>('all');
 
   const loadData = useCallback(async () => {
     try {
-      const [paymentsData, studentsData, balancesData, incomeData] = await Promise.all([
+      const [paymentsData, studentsData, balancesData, incomeData, settingsData] = await Promise.all([
         db.loadPayments(),
         db.loadStudents(),
         db.getStudentBalances(),
         db.getMonthlyIncome(6),
+        db.loadSettings(),
       ]);
 
       const studentMap: Record<string, Student> = {};
@@ -70,6 +77,7 @@ export default function FinancesScreen() {
       setPayments(paymentsData);
       setStudentBalances(balancesData);
       setMonthlyIncome(incomeData);
+      setSettings(settingsData);
     } catch (error) {
       console.error('Error loading finances:', error);
     } finally {
@@ -115,8 +123,6 @@ export default function FinancesScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <RoleSwitcherBar />
-
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -289,27 +295,55 @@ export default function FinancesScreen() {
                     >
                       {hasPending ? `-${formatCurrency(item.balance)}` : 'Al día'}
                     </Text>
-                    {hasPending && (
+                    
+                    <View style={styles.balanceActionsRow}>
                       <TouchableOpacity
-                        style={styles.chargeButton}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/payment/new',
-                            params: {
-                              studentId: item.student.id,
-                              amount: item.balance.toString(),
-                            },
-                          })
-                        }
+                        style={styles.whatsAppBalanceBtn}
+                        activeOpacity={0.8}
+                        onPress={async () => {
+                          setSelectedStudentForWA(item.student);
+                          const cls = await db.getClassesByStudent(item.student.id);
+                          setSelectedClassesForWA(cls);
+                          setShowWAModal(true);
+                        }}
                       >
-                        <Text style={styles.chargeButtonText}>Cobrar</Text>
+                        <Ionicons name="logo-whatsapp" size={13} color="#FFFFFF" />
+                        <Text style={styles.whatsAppBalanceBtnText}>Avisar</Text>
                       </TouchableOpacity>
-                    )}
+
+                      {hasPending && (
+                        <TouchableOpacity
+                          style={styles.chargeButton}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/payment/new',
+                              params: {
+                                studentId: item.student.id,
+                                amount: item.balance.toString(),
+                              },
+                            })
+                          }
+                        >
+                          <Text style={styles.chargeButtonText}>Cobrar</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 </View>
               </Card>
             );
           }}
+        />
+      )}
+
+      {/* WhatsApp Report Modal */}
+      {selectedStudentForWA && (
+        <WhatsAppReportModal
+          visible={showWAModal}
+          onClose={() => setShowWAModal(false)}
+          student={selectedStudentForWA}
+          classes={selectedClassesForWA}
+          settings={settings}
         />
       )}
     </View>
@@ -452,6 +486,25 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   chargeButtonText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  balanceActionsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
+  whatsAppBalanceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#25D366',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.sm,
+  },
+  whatsAppBalanceBtnText: {
     fontSize: FontSizes.xs,
     fontWeight: '700',
     color: '#FFFFFF',

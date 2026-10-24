@@ -68,6 +68,10 @@ export interface ClassSession {
   notes: string;
   homework?: string;
   recurringGroupId?: string; // ID del grupo de clases repetidas
+  cancelReason?: string; // Motivo de la cancelación (e.g. 'Festivo nacional', 'Enfermedad', etc.)
+  rescheduledFromDate?: string; // Fecha original si la clase fue cambiada
+  rescheduledFromTime?: string; // Hora original si la clase fue cambiada
+  isRescheduled?: boolean; // Indica si ha sido reprogramada
   createdAt: string;
   updatedAt: string;
 }

@@ -103,6 +103,30 @@ export const initializeDatabase = async (): Promise<void> => {
     // Column already exists
   }
 
+  try {
+    await database.execAsync("ALTER TABLE class_sessions ADD COLUMN cancelReason TEXT DEFAULT '';");
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await database.execAsync("ALTER TABLE class_sessions ADD COLUMN rescheduledFromDate TEXT DEFAULT '';");
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await database.execAsync("ALTER TABLE class_sessions ADD COLUMN rescheduledFromTime TEXT DEFAULT '';");
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await database.execAsync("ALTER TABLE class_sessions ADD COLUMN isRescheduled INTEGER DEFAULT 0;");
+  } catch {
+    // Column already exists
+  }
+
   // Create Subjects table
   await database.execAsync(`
     CREATE TABLE IF NOT EXISTS subjects (
@@ -697,6 +721,10 @@ export const updateClassSession = async (
   if (data.location !== undefined) { fields.push('location = ?'); values.push(data.location); }
   if (data.notes !== undefined) { fields.push('notes = ?'); values.push(data.notes); }
   if (data.homework !== undefined) { fields.push('homework = ?'); values.push(data.homework || null); }
+  if (data.cancelReason !== undefined) { fields.push('cancelReason = ?'); values.push(data.cancelReason || ''); }
+  if (data.rescheduledFromDate !== undefined) { fields.push('rescheduledFromDate = ?'); values.push(data.rescheduledFromDate || ''); }
+  if (data.rescheduledFromTime !== undefined) { fields.push('rescheduledFromTime = ?'); values.push(data.rescheduledFromTime || ''); }
+  if (data.isRescheduled !== undefined) { fields.push('isRescheduled = ?'); values.push(data.isRescheduled ? 1 : 0); }
 
   // Always recalculate totalAmount
   fields.push('totalAmount = ?');
@@ -780,9 +808,56 @@ const mapRowToClassSession = (row: any): ClassSession => ({
   location: row.location,
   notes: row.notes || '',
   homework: row.homework || undefined,
+  recurringGroupId: row.recurringGroupId || undefined,
+  cancelReason: row.cancelReason || undefined,
+  rescheduledFromDate: row.rescheduledFromDate || undefined,
+  rescheduledFromTime: row.rescheduledFromTime || undefined,
+  isRescheduled: row.isRescheduled === 1 || Boolean(row.rescheduledFromDate),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 });
+
+/**
+ * Cancel a class session with a specific reason
+ */
+export const cancelClassSession = async (
+  id: string,
+  reason: string
+): Promise<ClassSession | null> => {
+  return updateClassSession(id, {
+    status: 'cancelled',
+    cancelReason: reason,
+  });
+};
+
+/**
+ * Reschedule a class session to a new date and time
+ */
+export const rescheduleClassSession = async (
+  id: string,
+  newDate: string,
+  newStartTime: string,
+  newEndTime: string,
+  newDuration?: number,
+  reason?: string
+): Promise<ClassSession | null> => {
+  const current = await getClassSessionById(id);
+  if (!current) return null;
+
+  return updateClassSession(id, {
+    date: newDate,
+    startTime: newStartTime,
+    endTime: newEndTime,
+    duration: newDuration ?? current.duration,
+    status: 'scheduled',
+    rescheduledFromDate: current.date,
+    rescheduledFromTime: current.startTime,
+    isRescheduled: true,
+    notes: reason
+      ? `${current.notes ? current.notes + ' • ' : ''}Reprogramada del ${current.date} (${reason})`
+      : current.notes,
+  });
+};
 
 // =============================================================================
 // PAYMENTS CRUD

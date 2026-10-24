@@ -24,43 +24,52 @@ Diseñada con estándares de diseño nativos de **iOS (Human Interface Guideline
 
 ## ✨ Características Principales
 
-### 👥 Gestión de Alumnos y Acceso Multirrol
-- **Formulario ágil y simplificado:** Nombre del alumno, curso escolar, dirección, teléfono y nombre de los padres.
-- **Códigos de Acceso Únicos:** Generación automática de un código seguro por estudiante (ej: `ALE-4819`) que el profesor comparte con el alumno y sus padres para acceder a sus respectivos portales.
-- **Historial individual:** Acceso instantáneo a todas las clases impartidas y pagos recibidos del alumno.
+### 👥 Gestión Personal de Alumnos y Asignación de Tutor
+- **Ficha completa y directa:** Nombre del alumno, curso escolar, dirección, teléfono del estudiante y **teléfono de su tutor (padre/madre)** para contacto directo y WhatsApp.
+- **Historial individual:** Acceso instantáneo a todas las clases impartidas, canceladas o reprogramadas, y pagos recibidos del alumno.
 - **Control de saldo en tiempo real:** Cálculo automático de balance facturado, cobrado y pendiente de pago.
 - **Búsqueda y filtros:** Filtrado rápido por estado (Activos/Inactivos) y buscador en tiempo real.
 
-### 🎭 Tres Roles de Usuario Integrados
-- 👨‍🏫 **Perfil Profesor (Administrador):**
-  - Control absoluto: crea y edita alumnos, programa clases individuales o recurrentes, registra cobros y visualiza balances generales.
-  - Al dar de alta un alumno, el sistema genera automáticamente su código de acceso.
-- 🎒 **Perfil Estudiante:**
-  - Consulta rápida de su horario semanal y próximas clases particulares.
-  - Lista interactiva de deberes y tareas pendientes asignadas por el profesor, con casillas de verificación para marcar el progreso.
-- 👨‍👩‍👧 **Perfil Padre / Familia:**
-  - Supervisión clara del estado de cuenta y recibos pendientes (mostrando exclusivamente si la cuenta está al día o si hay algún pago pendiente, sin exponer la facturación o ingresos acumulados del profesor).
-  - Asistente directo para pagar por **Bizum** (con copia en 1 clic del teléfono del profesor e importe adeudado) o registro en **Efectivo**.
-  - Horario completo de clases de su hijo/a con información de ubicación clara.
-  - Supervisión de los deberes y tareas escolares que tiene asignadas.
-  - **Selector de Rol y Acceso:** Barra superior discreta para cambiar fácilmente de perfil o introducir el código de estudiante asignado.
+### 📲 Resumen de Clases y Cobro por WhatsApp Automatizado
+- **Envío en 1 clic al Tutor:** Generación instantánea del mensaje mensual con el desglose de clases impartidas, canceladas y reprogramadas, junto al importe total a abonar.
+- **Selector de periodo flexible:** Permite alternar entre **Mes Actual** y **Mes Anterior** para enviar la cuenta a finales o a primeros de mes.
+- **Formato transparente y profesional para los padres:**
+  ```text
+  👋 ¡Buenos días Carmen!
+
+  Te mando el resumen de las clases de Alejandro de este mes (Octubre) y el total a abonar:
+
+  • Día 1 (Mar): Clase 17:00 - 15,00 €
+  • Día 8 (Mar): Clase 17:00 - 15,00 €
+  • Día 15 (Mar): ❌ Clase cancelada - Motivo: Festivo nacional
+  • Día 17 (Jue): 🔄 Clase cambiada a las 17:30 (cambiada del día 15) - 15,00 €
+  • Día 22 (Mar): Clase 17:00 - 15,00 €
+
+  💰 Total a abonar: 60,00 €
+  (4 clases realizadas, 1 cancelada)
+
+  📱 Pago por Bizum al teléfono: +34 600 000 000
+  (Concepto: Clases Alejandro)
+  💵 O en efectivo en la próxima clase.
+
+  ¡Muchas gracias y buen día!
+  ```
+- **Disponible en múltiples vistas:** Accesible directamente desde la ficha de cada alumno y desde la tabla de balances en la pestaña de Finanzas.
+
+### 📅 Control, Reprogramación y Cancelación de Clases
+- **Programador flexible:** Asignación de alumno, días, horas, hasta cuándo dar clase (1 mes, trimestre o fin de curso en junio) y el precio por hora o sesión.
+- **Cancelar clase con motivo:** Opciones rápidas de motivos (Festivo nacional/escolar, Alumno enfermo, Imprevisto del profesor, Examen escolar, Aviso previo) o motivo personalizado, reflejado automáticamente en la cuenta del mes.
+- **Cambiar / Reprogramar clase:** Permite mover la sesión a un nuevo día y hora conservando el registro de la fecha original.
+- **Calendario escolar inteligente:** Opción para respetar el calendario escolar español y omitir automáticamente festivos y vacaciones.
+- **Ciclo de estados:** *Programada*, *Completada*, *Cancelada* y *No asistió el alumno*.
 
 ### 🔔 Alertas y Recordatorios de Clase con Ubicación
 - **Notificaciones inteligentes de clase:** Avisos que recuerdan el horario de inicio y la modalidad/ubicación exacta de la sesión:
   - 📍 **Presencial:** Dirección del centro o aula de estudio.
   - 🏠 **A Domicilio:** Dirección del alumno.
   - 💻 **Online:** Enlace y plataforma de videollamada.
-- **Acción en 1 clic de aviso por WhatsApp:** Permite al profesor enviar al alumno o a la familia un mensaje cordial preformateado con todos los datos de la clase.
+- **Acción en 1 clic de aviso por WhatsApp:** Permite enviar un recordatorio rápido antes de la clase.
 - **Recordatorios locales en el dispositivo:** Botón para activar alertas del sistema en el móvil (iOS y Android) o navegador web con 1 hora de antelación.
-
-### 📅 Control y Repetición Inteligente de Clases (Calendario Escolar)
-- **Programador de clases periódicas:** Posibilidad de repetir la clase automáticamente semanalmente durante 1 mes, un trimestre o hasta fin de curso (junio).
-- **Integración con el Calendario Escolar Español:** Detección y salto automático de días no lectivos, festivos nacionales (Navidad, Año Nuevo, Reyes, Semana Santa, Fiesta Nacional, Constitución, etc.) y periodos vacacionales.
-- **Previsualización en tiempo real:** Al configurar la periodicidad, la app calcula e informa exactamente cuántas sesiones se crearán y qué días festivos han sido omitidos del calendario.
-- **Tarifas y duraciones flexibles:** Precio por hora (€/h) con cálculo dinámico del importe según los minutos de sesión.
-- **Modalidades de clase:** Presencial, Online (videollamada) o A domicilio.
-- **Ciclo de estados:** *Programada*, *Completada*, *Cancelada* y *No asistió el alumno*.
-- **Seguimiento pedagógico:** Registro de notas de la clase y tareas/deberes asignados para la siguiente sesión.
 
 ### 💰 Gestión Financiera Simplificada
 - **Métodos de pago adaptados a la realidad:** Bizum y Efectivo como medios prioritarios.

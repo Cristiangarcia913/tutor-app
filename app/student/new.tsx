@@ -30,6 +30,7 @@ export default function NewStudentScreen() {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [parentName, setParentName] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [active, setActive] = useState(true);
 
@@ -54,6 +55,7 @@ export default function NewStudentScreen() {
         phone: phone.trim(),
         address: address.trim() || undefined,
         parentName: parentName.trim() || undefined,
+        parentPhone: parentPhone.trim() || undefined,
         email: '',
         notes: notes.trim(),
         active,
@@ -147,6 +149,14 @@ export default function NewStudentScreen() {
           value={parentName}
           onChangeText={setParentName}
           placeholder="Ej: Carmen Ruiz (Madre)"
+        />
+
+        <Input
+          label="Teléfono del Tutor (para WhatsApp y avisos)"
+          value={parentPhone}
+          onChangeText={setParentPhone}
+          keyboardType="phone-pad"
+          placeholder="+34 612 345 678"
         />
 
         <Input

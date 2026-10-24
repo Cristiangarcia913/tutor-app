@@ -461,6 +461,42 @@ export const webUpdateClass = async (
   return list[idx];
 };
 
+export const webCancelClass = async (
+  id: string,
+  reason: string
+): Promise<ClassSession | null> => {
+  return webUpdateClass(id, {
+    status: 'cancelled',
+    cancelReason: reason,
+  });
+};
+
+export const webRescheduleClass = async (
+  id: string,
+  newDate: string,
+  newStartTime: string,
+  newEndTime: string,
+  newDuration?: number,
+  reason?: string
+): Promise<ClassSession | null> => {
+  const current = await webGetClassById(id);
+  if (!current) return null;
+
+  return webUpdateClass(id, {
+    date: newDate,
+    startTime: newStartTime,
+    endTime: newEndTime,
+    duration: newDuration ?? current.duration,
+    status: 'scheduled',
+    rescheduledFromDate: current.date,
+    rescheduledFromTime: current.startTime,
+    isRescheduled: true,
+    notes: reason
+      ? `${current.notes ? current.notes + ' • ' : ''}Reprogramada del ${current.date} (${reason})`
+      : current.notes,
+  });
+};
+
 export const webDeleteClass = async (id: string): Promise<void> => {
   const list = await webGetAllClasses();
   const filtered = list.filter((c) => c.id !== id);

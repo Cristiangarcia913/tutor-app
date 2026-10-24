@@ -33,6 +33,8 @@ import {
   getLocationLabel,
 } from '../../src/constants/theme';
 import ClassReminderAlert from '../../src/components/classes/ClassReminderAlert';
+import CancelClassModal from '../../src/components/classes/CancelClassModal';
+import RescheduleClassModal from '../../src/components/classes/RescheduleClassModal';
 import type { ClassSession, Student, Subject } from '../../src/types';
 
 export default function ClassDetailScreen() {
@@ -47,6 +49,8 @@ export default function ClassDetailScreen() {
   const [subject, setSubject] = useState<Subject | null>(null);
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -87,6 +91,49 @@ export default function ClassDetailScreen() {
     } catch (err) {
       console.error('Error updating status:', err);
       Alert.alert('Error', 'No se pudo actualizar el estado de la clase.');
+    }
+  };
+
+  const handleConfirmCancel = async (reason: string) => {
+    if (!session) return;
+    try {
+      const updated = await db.cancelClass(session.id, reason);
+      if (updated) {
+        setSession(updated);
+        Alert.alert('Clase Cancelada', `Se ha cancelado la sesión.\nMotivo: ${reason}`);
+      }
+    } catch (err) {
+      console.error('Error cancelling class:', err);
+      Alert.alert('Error', 'No se pudo cancelar la clase.');
+    }
+  };
+
+  const handleConfirmReschedule = async (
+    newDate: string,
+    newStartTime: string,
+    newEndTime: string,
+    reason?: string
+  ) => {
+    if (!session) return;
+    try {
+      const updated = await db.rescheduleClass(
+        session.id,
+        newDate,
+        newStartTime,
+        newEndTime,
+        undefined,
+        reason
+      );
+      if (updated) {
+        setSession(updated);
+        Alert.alert(
+          'Clase Reprogramada',
+          `La clase se ha movido al ${formatDate(newDate)} a las ${newStartTime}.`
+        );
+      }
+    } catch (err) {
+      console.error('Error rescheduling class:', err);
+      Alert.alert('Error', 'No se pudo reprogramar la clase.');
     }
   };
 
@@ -245,6 +292,40 @@ export default function ClassDetailScreen() {
           </View>
         </Card>
 
+        {/* Banner de Clase Cancelada con Motivo */}
+        {session.status === 'cancelled' && (
+          <Card style={[styles.card, { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+              <Ionicons name="close-circle" size={24} color={Colors.danger} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: FontSizes.sm, fontWeight: '800', color: Colors.danger }}>
+                  Clase Cancelada
+                </Text>
+                <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
+                  Motivo: {session.cancelReason || 'Sin motivo especificado'}
+                </Text>
+              </View>
+            </View>
+          </Card>
+        )}
+
+        {/* Banner de Clase Reprogramada */}
+        {(session.isRescheduled || session.rescheduledFromDate) && session.status !== 'cancelled' && (
+          <Card style={[styles.card, { borderColor: '#BAE6FD', backgroundColor: '#F0F9FF' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+              <Ionicons name="swap-horizontal" size={24} color={Colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: FontSizes.sm, fontWeight: '800', color: Colors.primaryDark }}>
+                  Clase Reprogramada
+                </Text>
+                <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
+                  Cambiado del {session.rescheduledFromDate ? formatDate(session.rescheduledFromDate) : 'día anterior'} a las {session.rescheduledFromTime || ''}
+                </Text>
+              </View>
+            </View>
+          </Card>
+        )}
+
         {/* Alerta de Recordatorio de Clase y Aviso por WhatsApp */}
         {session.status === 'scheduled' && (
           <ClassReminderAlert
@@ -271,7 +352,7 @@ export default function ClassDetailScreen() {
 
         {/* Status Actions */}
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Cambiar Estado</Text>
+          <Text style={styles.sectionTitle}>Gestión de la Clase</Text>
 
           <View style={styles.actionButtonsCol}>
             {session.status !== 'completed' && (
@@ -283,25 +364,34 @@ export default function ClassDetailScreen() {
               />
             )}
 
+            {/* Reprogramar / Cambiar Fecha y Hora */}
+            <Button
+              title="Cambiar Día u Hora"
+              variant="outline"
+              onPress={() => setShowRescheduleModal(true)}
+              icon="swap-horizontal"
+            />
+
+            {/* Cancelar Clase con Motivo */}
+            {session.status !== 'cancelled' && (
+              <Button
+                title="Cancelar Clase (con motivo)"
+                variant="danger"
+                onPress={() => setShowCancelModal(true)}
+                icon="close-circle-outline"
+              />
+            )}
+
             {session.status !== 'scheduled' && (
               <Button
                 title="Volver a Programada"
-                variant="outline"
+                variant="ghost"
                 onPress={() => handleStatusChange('scheduled')}
                 icon="time-outline"
               />
             )}
 
-            {session.status !== 'cancelled' && (
-              <Button
-                title="Marcar como Cancelada"
-                variant="ghost"
-                onPress={() => handleStatusChange('cancelled')}
-                icon="close-circle-outline"
-              />
-            )}
-
-            {session.status !== 'no-show' && (
+            {session.status !== 'no-show' && session.status !== 'cancelled' && (
               <Button
                 title="No Asistió el Alumno"
                 variant="ghost"
@@ -340,6 +430,24 @@ export default function ClassDetailScreen() {
         destructive
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteDialog(false)}
+      />
+
+      {/* Cancel Class with Reason Modal */}
+      <CancelClassModal
+        visible={showCancelModal}
+        session={session}
+        studentName={student ? `${student.firstName} ${student.lastName}` : undefined}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleConfirmCancel}
+      />
+
+      {/* Reschedule Class to New Date and Time Modal */}
+      <RescheduleClassModal
+        visible={showRescheduleModal}
+        session={session}
+        studentName={student ? `${student.firstName} ${student.lastName}` : undefined}
+        onClose={() => setShowRescheduleModal(false)}
+        onConfirm={handleConfirmReschedule}
       />
     </View>
   );

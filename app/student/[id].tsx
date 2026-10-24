@@ -24,6 +24,7 @@ import {
 } from '../../src/components/common';
 import ClassCard from '../../src/components/classes/ClassCard';
 import PaymentCard from '../../src/components/finances/PaymentCard';
+import WhatsAppReportModal from '../../src/components/finances/WhatsAppReportModal';
 import {
   Colors,
   Spacing,
@@ -32,7 +33,7 @@ import {
   formatCurrency,
   formatDate,
 } from '../../src/constants/theme';
-import type { Student, ClassSession, Payment, Subject } from '../../src/types';
+import type { Student, ClassSession, Payment, Subject, AppSettings } from '../../src/types';
 
 export default function StudentDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -53,24 +54,28 @@ export default function StudentDetailScreen() {
     pending: 0,
   });
 
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!id || id === 'new') return;
     try {
-      const [studentData, classesData, paymentsData, subjectsData, balanceData] =
+      const [studentData, classesData, paymentsData, subjectsData, balanceData, settingsData] =
         await Promise.all([
           db.getStudent(id),
           db.getClassesByStudent(id),
           db.getPaymentsByStudent(id),
           db.loadSubjects(),
           db.getStudentBalance(id),
+          db.loadSettings(),
         ]);
 
       setStudent(studentData);
       setClasses(classesData);
       setPayments(paymentsData);
       setBalance(balanceData);
+      setSettings(settingsData);
 
       const subMap: Record<string, Subject> = {};
       subjectsData.forEach((s) => {
@@ -236,6 +241,15 @@ export default function StudentDetailScreen() {
               </View>
             )}
 
+            {student.parentPhone && (
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Teléfono del Tutor (WhatsApp)</Text>
+                <Text style={[styles.detailValue, { color: Colors.primary, fontWeight: '700' }]}>
+                  {student.parentPhone}
+                </Text>
+              </View>
+            )}
+
             {student.notes && (
               <View style={styles.detailItem}>
                 <Text style={styles.detailLabel}>Notas / Observaciones</Text>
@@ -245,35 +259,35 @@ export default function StudentDetailScreen() {
           </View>
         </Card>
 
-        {/* Access Code Card for Student & Parent Portal */}
-        <Card style={styles.accessCodeCard}>
-          <View style={styles.accessCodeHeader}>
-            <View style={styles.accessCodeIconBox}>
-              <Ionicons name="key-outline" size={18} color={Colors.primary} />
+        {/* WhatsApp Monthly Breakdown & Billing Card */}
+        <Card style={styles.whatsAppCard}>
+          <View style={styles.whatsAppCardHeader}>
+            <View style={styles.whatsAppIconCircle}>
+              <Ionicons name="logo-whatsapp" size={22} color="#FFFFFF" />
             </View>
-            <View style={styles.accessCodeInfo}>
-              <Text style={styles.accessCodeTitle}>Código de Acceso Alumno y Familias</Text>
-              <Text style={styles.accessCodeSub}>
-                Compártelo para que puedan consultar sus clases, tareas y pagos
+            <View style={styles.whatsAppCardInfo}>
+              <Text style={styles.whatsAppCardTitle}>Resumen y Cobro por WhatsApp</Text>
+              <Text style={styles.whatsAppCardSub}>
+                Envía al tutor el desglose mensual de clases (impartidas, canceladas) y el importe total a abonar.
               </Text>
             </View>
           </View>
 
-          <View style={styles.accessCodeRow}>
-            <View style={styles.accessCodeBadge}>
-              <Text style={styles.accessCodeValue}>{student.accessCode || 'ALE-4819'}</Text>
+          <View style={styles.whatsAppTutorRow}>
+            <View style={styles.whatsAppTutorInfo}>
+              <Text style={styles.whatsAppTutorLabel}>Tutor asignado:</Text>
+              <Text style={styles.whatsAppTutorValue} numberOfLines={1}>
+                {student.parentName || 'Familia'} • {student.parentPhone || student.phone || 'Sin teléfono'}
+              </Text>
             </View>
+
             <TouchableOpacity
-              style={styles.copyCodeButton}
-              onPress={() => {
-                Alert.alert(
-                  'Código de Acceso',
-                  `Código para ${student.firstName}: ${student.accessCode || 'ALE-4819'}\n\nLos padres o el alumno pueden introducir este código en la app para acceder a su portal.`
-                );
-              }}
+              style={styles.openWhatsAppModalBtn}
+              activeOpacity={0.85}
+              onPress={() => setShowWhatsAppModal(true)}
             >
-              <Ionicons name="share-social-outline" size={16} color="#FFFFFF" />
-              <Text style={styles.copyCodeButtonText}>Compartir</Text>
+              <Ionicons name="paper-plane" size={14} color="#FFFFFF" />
+              <Text style={styles.openWhatsAppModalBtnText}>Enviar Resumen</Text>
             </TouchableOpacity>
           </View>
         </Card>
@@ -398,6 +412,17 @@ export default function StudentDetailScreen() {
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteDialog(false)}
       />
+
+      {/* WhatsApp Monthly Report Modal */}
+      {student && (
+        <WhatsAppReportModal
+          visible={showWhatsAppModal}
+          onClose={() => setShowWhatsAppModal(false)}
+          student={student}
+          classes={classes}
+          settings={settings}
+        />
+      )}
     </View>
   );
 }
@@ -468,73 +493,78 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
   },
-  accessCodeCard: {
+  whatsAppCard: {
     padding: Spacing.md,
-    backgroundColor: '#EEF2FF',
-    borderColor: '#C7D2FE',
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
     borderWidth: 1,
   },
-  accessCodeHeader: {
+  whatsAppCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  accessCodeIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#E0E7FF',
+  whatsAppIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#25D366',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  accessCodeInfo: {
+  whatsAppCardInfo: {
     flex: 1,
   },
-  accessCodeTitle: {
-    fontSize: FontSizes.xs,
+  whatsAppCardTitle: {
+    fontSize: FontSizes.sm,
     fontWeight: '800',
-    color: '#3730A3',
+    color: '#15803D',
   },
-  accessCodeSub: {
-    fontSize: 10,
-    color: '#4F46E5',
+  whatsAppCardSub: {
+    fontSize: 11,
+    color: '#166534',
     marginTop: 1,
+    lineHeight: 15,
   },
-  accessCodeRow: {
+  whatsAppTutorRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: '#FFFFFF',
     padding: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
+    borderColor: '#BBF7D0',
+    gap: Spacing.xs,
   },
-  accessCodeBadge: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.xs,
+  whatsAppTutorInfo: {
+    flex: 1,
   },
-  accessCodeValue: {
-    fontSize: FontSizes.md,
-    fontWeight: '900',
-    color: '#3730A3',
-    letterSpacing: 1,
+  whatsAppTutorLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
   },
-  copyCodeButton: {
+  whatsAppTutorValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginTop: 1,
+  },
+  openWhatsAppModalBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.primary,
+    gap: 6,
+    backgroundColor: '#25D366',
     paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.sm,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.md,
   },
-  copyCodeButtonText: {
+  openWhatsAppModalBtnText: {
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '800',
     fontSize: FontSizes.xs,
   },
   detailsGrid: {

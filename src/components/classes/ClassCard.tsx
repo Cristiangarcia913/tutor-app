@@ -103,10 +103,35 @@ export default function ClassCard({
             />
             <Text style={styles.metaTextMuted}>{locationLabel}</Text>
           </View>
+
+          {session.status === 'cancelled' && (
+            <View style={styles.cancelReasonRow}>
+              <Ionicons name="alert-circle-outline" size={13} color={Colors.danger} />
+              <Text style={styles.cancelReasonText} numberOfLines={1}>
+                Motivo: {session.cancelReason || 'Aviso previo / Festivo'}
+              </Text>
+            </View>
+          )}
+
+          {(session.isRescheduled || session.rescheduledFromDate) && session.status !== 'cancelled' && (
+            <View style={styles.rescheduledRow}>
+              <Ionicons name="swap-horizontal" size={13} color={Colors.primary} />
+              <Text style={styles.rescheduledText} numberOfLines={1}>
+                Cambiada del {session.rescheduledFromDate}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.priceContainer}>
-          <Text style={styles.priceText}>{formatCurrency(session.totalAmount)}</Text>
+          <Text
+            style={[
+              styles.priceText,
+              session.status === 'cancelled' && styles.priceTextCancelled,
+            ]}
+          >
+            {session.status === 'cancelled' ? '0,00 €' : formatCurrency(session.totalAmount)}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -198,5 +223,31 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '700',
     color: Colors.primary,
+  },
+  priceTextCancelled: {
+    color: Colors.textTertiary,
+    textDecorationLine: 'line-through',
+  },
+  cancelReasonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  cancelReasonText: {
+    fontSize: 11,
+    color: Colors.danger,
+    fontWeight: '600',
+  },
+  rescheduledRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  rescheduledText: {
+    fontSize: 11,
+    color: Colors.primary,
+    fontWeight: '600',
   },
 });

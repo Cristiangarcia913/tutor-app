@@ -64,11 +64,11 @@ export default function StudentCard({
             </View>
           ) : null}
 
-          {student.parentName ? (
+          {student.parentName || student.parentPhone ? (
             <View style={styles.metaRow}>
               <Ionicons name="people-outline" size={13} color={Colors.textTertiary} />
               <Text style={styles.metaTextMuted} numberOfLines={1}>
-                Padres: {student.parentName}
+                Tutor: {student.parentName || 'Tutor'}{student.parentPhone ? ` (${student.parentPhone})` : ''}
               </Text>
             </View>
           ) : null}

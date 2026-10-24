@@ -54,6 +54,15 @@ interface DatabaseContextType {
   createClass: (data: ClassSessionFormData) => Promise<ClassSession>;
   createClassesBatch: (dataList: ClassSessionFormData[]) => Promise<ClassSession[]>;
   updateClass: (id: string, data: Partial<ClassSessionFormData>) => Promise<ClassSession | null>;
+  cancelClass: (id: string, reason: string) => Promise<ClassSession | null>;
+  rescheduleClass: (
+    id: string,
+    newDate: string,
+    newStartTime: string,
+    newEndTime: string,
+    newDuration?: number,
+    reason?: string
+  ) => Promise<ClassSession | null>;
   deleteClass: (id: string) => Promise<void>;
   getUpcomingClasses: (limit?: number) => Promise<ClassSession[]>;
   getTodayClasses: () => Promise<ClassSession[]>;
@@ -175,6 +184,15 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       createClass: async (data: ClassSessionFormData) => db.createClassSession(data),
       createClassesBatch: async (dataList: ClassSessionFormData[]) => db.createClassesBatch(dataList),
       updateClass: async (id: string, data: Partial<ClassSessionFormData>) => db.updateClassSession(id, data),
+      cancelClass: async (id: string, reason: string) => db.cancelClassSession(id, reason),
+      rescheduleClass: async (
+        id: string,
+        newDate: string,
+        newStartTime: string,
+        newEndTime: string,
+        newDuration?: number,
+        reason?: string
+      ) => db.rescheduleClassSession(id, newDate, newStartTime, newEndTime, newDuration, reason),
       deleteClass: async (id: string) => db.deleteClassSession(id),
       getUpcomingClasses: async (limit: number = 5) => db.getUpcomingClasses(limit),
       getTodayClasses: async () => db.getTodayClasses(),

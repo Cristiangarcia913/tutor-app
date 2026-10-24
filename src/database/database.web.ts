@@ -170,6 +170,24 @@ export const updateClassSession = async (
   return web.webUpdateClass(id, data);
 };
 
+export const cancelClassSession = async (
+  id: string,
+  reason: string
+): Promise<ClassSession | null> => {
+  return web.webCancelClass(id, reason);
+};
+
+export const rescheduleClassSession = async (
+  id: string,
+  newDate: string,
+  newStartTime: string,
+  newEndTime: string,
+  newDuration?: number,
+  reason?: string
+): Promise<ClassSession | null> => {
+  return web.webRescheduleClass(id, newDate, newStartTime, newEndTime, newDuration, reason);
+};
+
 export const deleteClassSession = async (id: string): Promise<void> => {
   return web.webDeleteClass(id);
 };
