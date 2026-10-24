@@ -27,16 +27,25 @@ export default function IncomeChart({ data, title = 'Evolución de Ingresos' }: 
   const maxAmount = Math.max(...data.map((d) => d.amount), 1);
   const CHART_HEIGHT = 140;
 
-  // Format month to short label (e.g. "2026-10" -> "Oct" or take as is)
+  // Format month to label (e.g. "2026-10" -> "Octubre" if 1 month, or "Oct")
   const formatMonthLabel = (m: string): string => {
     if (m.includes('-')) {
       const parts = m.split('-');
       const monthNum = parseInt(parts[1], 10);
-      const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-      return months[monthNum - 1] || m;
+      const monthsShort = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+      const monthsFull = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      ];
+      if (data.length <= 2) {
+        return monthsFull[monthNum - 1] || m;
+      }
+      return monthsShort[monthNum - 1] || m;
     }
     return m.substring(0, 3);
   };
+
+  const trackWidth = data.length === 1 ? 48 : data.length <= 3 ? 36 : 22;
 
   return (
     <View style={styles.container}>
@@ -47,18 +56,30 @@ export default function IncomeChart({ data, title = 'Evolución de Ingresos' }: 
         </Text>
       </View>
 
-      <View style={[styles.chartArea, { height: CHART_HEIGHT }]}>
+      <View
+        style={[
+          styles.chartArea,
+          { height: CHART_HEIGHT },
+          data.length <= 2 && styles.chartAreaCentered,
+        ]}
+      >
         {data.map((item, index) => {
-          const heightPercent = Math.max((item.amount / maxAmount) * 100, 4);
+          const heightPercent = Math.max((item.amount / maxAmount) * 100, 8);
           const isLatest = index === data.length - 1;
 
           return (
-            <View key={item.month || index} style={styles.barColumn}>
-              <Text style={styles.barAmount} numberOfLines={1}>
-                {item.amount > 0 ? `${Math.round(item.amount)}€` : '0'}
+            <View
+              key={item.month || index}
+              style={[
+                styles.barColumn,
+                data.length <= 2 && styles.barColumnCompact,
+              ]}
+            >
+              <Text style={[styles.barAmount, data.length <= 3 && styles.barAmountLarge]} numberOfLines={1}>
+                {item.amount > 0 ? `${Math.round(item.amount)}€` : '0€'}
               </Text>
 
-              <View style={styles.barTrack}>
+              <View style={[styles.barTrack, { width: trackWidth }]}>
                 <View
                   style={[
                     styles.barFill,
@@ -74,6 +95,7 @@ export default function IncomeChart({ data, title = 'Evolución de Ingresos' }: 
                 style={[
                   styles.barLabel,
                   isLatest && styles.barLabelActive,
+                  data.length <= 2 && styles.barLabelLarge,
                 ]}
                 numberOfLines={1}
               >
@@ -126,12 +148,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: Spacing.sm,
   },
+  chartAreaCentered: {
+    justifyContent: 'center',
+    gap: 32,
+  },
   barColumn: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
     height: '100%',
     justifyContent: 'flex-end',
     paddingHorizontal: 2,
+  },
+  barColumnCompact: {
+    flex: 0,
+    minWidth: 80,
+    maxWidth: 120,
   },
   barAmount: {
     fontSize: 9,
@@ -139,9 +171,13 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: 4,
   },
+  barAmountLarge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
   barTrack: {
     flex: 1,
-    width: 20,
     justifyContent: 'flex-end',
     alignItems: 'center',
     backgroundColor: Colors.surfaceVariant,
@@ -157,6 +193,10 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     marginTop: 6,
     fontWeight: '500',
+  },
+  barLabelLarge: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   barLabelActive: {
     color: Colors.primary,

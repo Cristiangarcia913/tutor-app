@@ -345,9 +345,15 @@ export default function ClassesScreen() {
       {/* Aesthetic Monthly Financial Bar */}
       <View style={styles.statsSummaryCard}>
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>Total Facturado</Text>
-          <Text style={styles.statValueTotal}>{formatCurrency(monthStats.totalAmount)}</Text>
-          <Text style={styles.statSubText}>{monthStats.totalClasses} clases</Text>
+          <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>
+            Total Facturado
+          </Text>
+          <Text style={styles.statValueTotal} numberOfLines={1} adjustsFontSizeToFit>
+            {formatCurrency(monthStats.totalAmount)}
+          </Text>
+          <Text style={styles.statSubText} numberOfLines={1}>
+            {monthStats.totalClasses} clases
+          </Text>
         </View>
 
         <View style={styles.statDivider} />
@@ -355,10 +361,16 @@ export default function ClassesScreen() {
         <View style={styles.statBox}>
           <View style={styles.statLabelRow}>
             <View style={[styles.miniDot, { backgroundColor: '#10B981' }]} />
-            <Text style={[styles.statLabel, { color: '#047857' }]}>Pagadas</Text>
+            <Text style={[styles.statLabel, { color: '#047857' }]} numberOfLines={1} adjustsFontSizeToFit>
+              Pagadas
+            </Text>
           </View>
-          <Text style={styles.statValuePaid}>{formatCurrency(monthStats.paidAmount)}</Text>
-          <Text style={styles.statSubTextPaid}>{monthStats.paidCount} pagadas</Text>
+          <Text style={styles.statValuePaid} numberOfLines={1} adjustsFontSizeToFit>
+            {formatCurrency(monthStats.paidAmount)}
+          </Text>
+          <Text style={styles.statSubTextPaid} numberOfLines={1}>
+            {monthStats.paidCount} pagadas
+          </Text>
         </View>
 
         <View style={styles.statDivider} />
@@ -366,10 +378,16 @@ export default function ClassesScreen() {
         <View style={styles.statBox}>
           <View style={styles.statLabelRow}>
             <View style={[styles.miniDot, { backgroundColor: '#F59E0B' }]} />
-            <Text style={[styles.statLabel, { color: '#B45309' }]}>Pendientes</Text>
+            <Text style={[styles.statLabel, { color: '#B45309' }]} numberOfLines={1} adjustsFontSizeToFit>
+              Pendientes
+            </Text>
           </View>
-          <Text style={styles.statValuePending}>{formatCurrency(monthStats.pendingAmount)}</Text>
-          <Text style={styles.statSubTextPending}>{monthStats.pendingCount} por cobrar</Text>
+          <Text style={styles.statValuePending} numberOfLines={1} adjustsFontSizeToFit>
+            {formatCurrency(monthStats.pendingAmount)}
+          </Text>
+          <Text style={styles.statSubTextPending} numberOfLines={1}>
+            {monthStats.pendingCount} por cobrar
+          </Text>
         </View>
       </View>
 
@@ -588,9 +606,11 @@ export default function ClassesScreen() {
             {/* SECCIÓN DETALLE DEL DÍA SELECCIONADO */}
             <View style={styles.selectedDaySection}>
               <View style={styles.selectedDayHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.selectedDayTitle}>{selectedDayLabel}</Text>
-                  <Text style={styles.selectedDaySubtitle}>
+                <View style={{ flex: 1, minWidth: 0, marginRight: Spacing.xs }}>
+                  <Text style={styles.selectedDayTitle} numberOfLines={1} adjustsFontSizeToFit>
+                    {selectedDayLabel}
+                  </Text>
+                  <Text style={styles.selectedDaySubtitle} numberOfLines={1}>
                     {selectedDayClasses.length === 0
                       ? 'Sin clases en esta fecha'
                       : `${selectedDayClasses.length} ${selectedDayClasses.length === 1 ? 'clase programada' : 'clases programadas'}`}
@@ -756,8 +776,10 @@ const styles = StyleSheet.create({
   },
   statBox: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 2,
   },
   statDivider: {
     width: 1,
@@ -909,6 +931,7 @@ const styles = StyleSheet.create({
   },
   weekDayCell: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -930,11 +953,13 @@ const styles = StyleSheet.create({
   },
   emptySquare: {
     flex: 1,
+    minWidth: 0,
     minHeight: 68,
     backgroundColor: 'transparent',
   },
   daySquare: {
     flex: 1,
+    minWidth: 0,
     minHeight: 68,
     backgroundColor: '#FAFAFA',
     borderRadius: 5,
@@ -942,6 +967,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     padding: 2,
     justifyContent: 'flex-start',
+    overflow: 'hidden',
   },
   daySquareHasClasses: {
     backgroundColor: '#FFFFFF',
@@ -1002,8 +1028,10 @@ const styles = StyleSheet.create({
   },
   daySquareContent: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
     marginTop: 1,
+    overflow: 'hidden',
   },
   squareClassChip: {
     borderRadius: 3,
@@ -1012,6 +1040,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E7FF',
     borderWidth: 0.5,
     borderColor: '#C7D2FE',
+    minWidth: 0,
+    overflow: 'hidden',
   },
   squareClassChipPaid: {
     backgroundColor: '#DCFCE7',

@@ -127,11 +127,11 @@ export default function ClassReminderAlert({
         >
           <Ionicons
             name={scheduled ? 'checkmark-circle' : 'notifications-outline'}
-            size={15}
+            size={14}
             color={scheduled ? '#FFFFFF' : Colors.primary}
           />
-          <Text style={[styles.actionBtnText, scheduled && styles.actionBtnTextActive]}>
-            {scheduled ? 'Alerta Activada' : 'Activar Recordatorio'}
+          <Text style={[styles.actionBtnText, scheduled && styles.actionBtnTextActive]} numberOfLines={1}>
+            {scheduled ? 'Alerta Activada' : 'Recordatorio'}
           </Text>
         </TouchableOpacity>
 
@@ -141,8 +141,10 @@ export default function ClassReminderAlert({
             onPress={handleWhatsApp}
             activeOpacity={0.7}
           >
-            <Ionicons name="logo-whatsapp" size={15} color="#16A34A" />
-            <Text style={styles.actionBtnSecondaryText}>Avisar WhatsApp</Text>
+            <Ionicons name="logo-whatsapp" size={14} color="#16A34A" />
+            <Text style={styles.actionBtnSecondaryText} numberOfLines={1}>
+              Avisar WhatsApp
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -249,16 +251,19 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: 8,
     marginTop: Spacing.xs,
   },
   actionBtn: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 5,
     backgroundColor: '#EEF2FF',
     paddingVertical: 7,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 8,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
     borderColor: '#C7D2FE',
@@ -268,27 +273,30 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   actionBtnText: {
-    fontSize: FontSizes.xs,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: Colors.primary,
   },
   actionBtnTextActive: {
     color: '#FFFFFF',
   },
   actionBtnSecondary: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 5,
     backgroundColor: '#F0FDF4',
     paddingVertical: 7,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: 8,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
     borderColor: '#BBF7D0',
   },
   actionBtnSecondaryText: {
-    fontSize: FontSizes.xs,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: '#16A34A',
   },
 });

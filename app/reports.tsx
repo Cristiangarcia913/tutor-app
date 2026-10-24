@@ -73,37 +73,24 @@ export default function ReportsScreen() {
   }, [classes]);
 
   const totalCollected = useMemo(() => {
-    return payments
-      .filter((p) => p.status === 'cobrado')
+    const paidClassesAmount = classes
+      .filter((c) => c.isPaid && c.status !== 'cancelled')
+      .reduce((sum, c) => sum + c.totalAmount, 0);
+    const standalonePayments = payments
+      .filter((p) => p.status === 'cobrado' && (!p.classSessionIds || p.classSessionIds.length === 0))
       .reduce((sum, p) => sum + p.amount, 0);
-  }, [payments]);
+    return paidClassesAmount + standalonePayments;
+  }, [classes, payments]);
+
+  const totalPending = useMemo(() => {
+    return classes
+      .filter((c) => !c.isPaid && c.status !== 'cancelled')
+      .reduce((sum, c) => sum + c.totalAmount, 0);
+  }, [classes]);
 
   const totalHours = useMemo(() => {
     return classes.reduce((sum, c) => sum + c.duration, 0) / 60;
   }, [classes]);
-
-  const avgPerClass = useMemo(() => {
-    if (classes.length === 0) return 0;
-    return totalBilled / classes.length;
-  }, [totalBilled, classes.length]);
-
-  // Subject breakdown
-  const subjectStats = useMemo(() => {
-    const map: Record<string, { count: number; total: number; name: string; color: string }> = {};
-
-    subjects.forEach((s) => {
-      map[s.id] = { count: 0, total: 0, name: s.name, color: s.color };
-    });
-
-    classes.forEach((c) => {
-      if (map[c.subjectId]) {
-        map[c.subjectId].count += 1;
-        map[c.subjectId].total += c.totalAmount;
-      }
-    });
-
-    return Object.values(map).filter((s) => s.count > 0);
-  }, [classes, subjects]);
 
   const handleExport = async () => {
     try {
@@ -155,15 +142,23 @@ export default function ReportsScreen() {
           </View>
           <View style={styles.gridCol}>
             <StatCard
+              title="Por Cobrar"
+              value={formatCurrency(totalPending)}
+              icon="alert-circle-outline"
+              color={totalPending > 0 ? Colors.warning : Colors.textTertiary}
+            />
+          </View>
+        </View>
+
+        <View style={styles.grid}>
+          <View style={styles.gridCol}>
+            <StatCard
               title="Total Clases"
               value={classes.length}
               icon="school-outline"
               color={Colors.primary}
             />
           </View>
-        </View>
-
-        <View style={styles.grid}>
           <View style={styles.gridCol}>
             <StatCard
               title="Horas Totales"
@@ -172,39 +167,10 @@ export default function ReportsScreen() {
               color={Colors.secondary}
             />
           </View>
-          <View style={styles.gridCol}>
-            <StatCard
-              title="Media / Clase"
-              value={formatCurrency(avgPerClass)}
-              icon="trending-up-outline"
-              color={Colors.warning}
-            />
-          </View>
         </View>
 
         {/* Monthly Income Chart */}
         <IncomeChart data={monthlyIncome} title="Evolución de Ingresos" />
-
-        {/* Subject Breakdown Card */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Distribución por Asignatura</Text>
-          {subjectStats.length === 0 ? (
-            <Text style={styles.emptyText}>Sin clases registradas aún.</Text>
-          ) : (
-            subjectStats.map((sub, idx) => (
-              <View key={idx} style={styles.subjectRow}>
-                <View style={styles.subjectHeader}>
-                  <View style={[styles.subjectDot, { backgroundColor: sub.color }]} />
-                  <Text style={styles.subjectName}>{sub.name}</Text>
-                  <Text style={styles.subjectCount}>
-                    {sub.count} {sub.count === 1 ? 'clase' : 'clases'}
-                  </Text>
-                </View>
-                <Text style={styles.subjectTotal}>{formatCurrency(sub.total)}</Text>
-              </View>
-            ))
-          )}
-        </Card>
 
         {/* Export Data Button */}
         <Button
@@ -228,7 +194,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
@@ -243,18 +209,19 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   content: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
     gap: Spacing.md,
   },
   grid: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   gridCol: {
     flex: 1,
+    minWidth: 0,
   },
   card: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
   },
   sectionTitle: {
     fontSize: FontSizes.md,
@@ -266,38 +233,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.textTertiary,
     fontStyle: 'italic',
-  },
-  subjectRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  subjectHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  subjectDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  subjectName: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  subjectCount: {
-    fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
-  },
-  subjectTotal: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: Colors.primary,
   },
   centered: {
     flex: 1,

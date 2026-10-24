@@ -103,16 +103,22 @@ export default function FinancesScreen() {
 
   // Financial calculations
   const totalCollected = useMemo(() => {
+    if (studentBalances.length > 0) {
+      return studentBalances.reduce((sum, b) => sum + b.totalPaid, 0);
+    }
     return payments
       .filter((p) => p.status === 'cobrado')
       .reduce((sum, p) => sum + p.amount, 0);
-  }, [payments]);
+  }, [studentBalances, payments]);
 
   const totalPending = useMemo(() => {
+    if (studentBalances.length > 0) {
+      return studentBalances.reduce((sum, b) => sum + Math.max(b.balance, 0), 0);
+    }
     return payments
       .filter((p) => p.status === 'pendiente')
       .reduce((sum, p) => sum + p.amount, 0);
-  }, [payments]);
+  }, [studentBalances, payments]);
 
   const filteredPayments = useMemo(() => {
     if (methodFilter === 'all') return payments;
@@ -399,6 +405,7 @@ const styles = StyleSheet.create({
   },
   statCol: {
     flex: 1,
+    minWidth: 0,
   },
   tabSwitcher: {
     flexDirection: 'row',
@@ -410,6 +417,7 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
+    minWidth: 0,
     paddingVertical: 8,
     alignItems: 'center',
     borderRadius: BorderRadius.sm,

@@ -380,6 +380,7 @@ const styles = StyleSheet.create({
   },
   gridCol: {
     flex: 1,
+    minWidth: 0,
   },
   shortcutsRow: {
     flexDirection: 'row',
@@ -392,6 +393,7 @@ const styles = StyleSheet.create({
   shortcutBtn: {
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
   },
   shortcutIcon: {
     width: 44,

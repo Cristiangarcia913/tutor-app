@@ -553,25 +553,49 @@ export const webToggleClassPaid = async (
   };
 
   let createdPayment: Payment | undefined;
+  const payments = await webGetAllPayments();
+
   if (newPaidStatus) {
-    const payments = await webGetAllPayments();
-    const existing = payments.find((p) => p.classSessionIds.includes(id) && p.status === 'cobrado');
-    if (!existing) {
-      createdPayment = await webCreatePayment({
-        studentId: current.studentId,
-        amount: current.totalAmount,
-        date: current.date,
-        method: method,
-        concept: `Clase ${current.date} (${current.startTime})`,
-        classSessionIds: [id],
-        status: 'cobrado',
-        notes: `Cobrado por ${method}`,
-      });
-      list[idx].paymentId = createdPayment.id;
+    // Si ya existía un pago pendiente para esta clase, actualizarlo a cobrado
+    const existingPending = payments.find(
+      (p) => p.classSessionIds.includes(id) && p.status === 'pendiente'
+    );
+    if (existingPending) {
+      existingPending.status = 'cobrado';
+      existingPending.method = method;
+      existingPending.notes = `Cobrado por ${method}`;
+      existingPending.amount = current.totalAmount;
+      storage.set('tutorapp_payments', payments);
+      list[idx].paymentId = existingPending.id;
+      createdPayment = existingPending;
+    } else {
+      const existingCobrado = payments.find(
+        (p) => p.classSessionIds.includes(id) && p.status === 'cobrado'
+      );
+      if (!existingCobrado) {
+        createdPayment = await webCreatePayment({
+          studentId: current.studentId,
+          amount: current.totalAmount,
+          date: current.date,
+          method: method,
+          concept: `Clase ${current.date} (${current.startTime})`,
+          classSessionIds: [id],
+          status: 'cobrado',
+          notes: `Cobrado por ${method}`,
+        });
+        list[idx].paymentId = createdPayment.id;
+      } else {
+        createdPayment = existingCobrado;
+        list[idx].paymentId = existingCobrado.id;
+      }
     }
-  } else if (current.paymentId) {
-    const payments = await webGetAllPayments();
-    const filteredPayments = payments.filter((p) => p.id !== current.paymentId);
+  } else {
+    // Si se desmarca como pagada, eliminar o desvincular el cobro asociado
+    const filteredPayments = payments.filter((p) => {
+      if (current.paymentId && p.id === current.paymentId) return false;
+      if (p.classSessionIds.includes(id) && p.status === 'cobrado') return false;
+      return true;
+    });
     storage.set('tutorapp_payments', filteredPayments);
     list[idx].paymentId = undefined;
   }
@@ -849,30 +873,79 @@ export const webGetDashboardStats = async (): Promise<DashboardStats> => {
   const activeStudents = students.filter((s) => s.active).length;
   const currentMonth = todayStr.substring(0, 7);
 
-  const classesThisMonth = classes.filter((c) => c.date.startsWith(currentMonth)).length;
+  const classesThisMonth = classes.filter((c) => c.date.startsWith(currentMonth) && c.status !== 'cancelled').length;
 
-  const totalIncomeThisMonth = payments
-    .filter((p) => p.status === 'cobrado' && p.date.startsWith(currentMonth))
-    .reduce((sum, p) => sum + p.amount, 0);
+  // Ingresos reales cobrados este mes (de clases pagadas + cobros sueltos)
+  const paidClassesThisMonth = classes.filter(
+    (c) => c.isPaid && c.status !== 'cancelled' && c.date.startsWith(currentMonth)
+  );
+  const paidClassesAmount = paidClassesThisMonth.reduce((sum, c) => sum + c.totalAmount, 0);
 
-  const pendingPaymentsList = payments.filter((p) => p.status === 'pendiente');
-  const pendingPayments = pendingPaymentsList.length;
-  const pendingPaymentAmount = pendingPaymentsList.reduce((sum, p) => sum + p.amount, 0);
+  const standalonePaymentsThisMonth = payments.filter(
+    (p) =>
+      p.status === 'cobrado' &&
+      p.date.startsWith(currentMonth) &&
+      (!p.classSessionIds || p.classSessionIds.length === 0)
+  );
+  const totalIncomeThisMonth = paidClassesAmount + standalonePaymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
+
+  // Clases reales no pagadas (pendiente de cobro)
+  const unpaidClasses = classes.filter((c) => !c.isPaid && c.status !== 'cancelled');
+  const pendingPaymentAmount = unpaidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+  const pendingPayments = unpaidClasses.length;
 
   const upcomingClasses = classes
     .filter((c) => c.status === 'scheduled')
     .slice(0, 5);
 
-  const recentPayments = payments.slice(0, 5);
+  const recentPayments = payments.filter((p) => p.status === 'cobrado').slice(0, 5);
 
-  const monthlyIncome = [
-    { month: '2026-05', amount: 180 },
-    { month: '2026-06', amount: 240 },
-    { month: '2026-07', amount: 150 },
-    { month: '2026-08', amount: 90 },
-    { month: '2026-09', amount: 320 },
-    { month: '2026-10', amount: totalIncomeThisMonth || 82 },
-  ];
+  // Evolución mensual REAL: partir del primer mes con actividad (no inventar meses previos a octubre)
+  const activityMonths = new Set<string>();
+  classes.forEach((c) => {
+    if (c.date) activityMonths.add(c.date.substring(0, 7));
+  });
+  payments.forEach((p) => {
+    if (p.date) activityMonths.add(p.date.substring(0, 7));
+  });
+  activityMonths.add(currentMonth);
+
+  const sortedMonths = Array.from(activityMonths).sort();
+  // El primer mes con clases/cobros
+  const startMonthStr = sortedMonths[0] || currentMonth;
+
+  const monthlyIncome: { month: string; amount: number }[] = [];
+  const [startYear, startM] = startMonthStr.split('-').map(Number);
+  const [endYear, endM] = currentMonth.split('-').map(Number);
+
+  let y = startYear;
+  let m = startM;
+  while (y < endYear || (y === endYear && m <= endM)) {
+    const mStr = `${y}-${String(m).padStart(2, '0')}`;
+    const mPaidClasses = classes.filter(
+      (c) => c.isPaid && c.status !== 'cancelled' && c.date.startsWith(mStr)
+    );
+    const mClassesTotal = mPaidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+
+    const mStandalone = payments.filter(
+      (p) =>
+        p.status === 'cobrado' &&
+        p.date.startsWith(mStr) &&
+        (!p.classSessionIds || p.classSessionIds.length === 0)
+    );
+    const mPaymentsTotal = mStandalone.reduce((sum, p) => sum + p.amount, 0);
+
+    monthlyIncome.push({
+      month: mStr,
+      amount: mClassesTotal + mPaymentsTotal,
+    });
+
+    m++;
+    if (m > 12) {
+      m = 1;
+      y++;
+    }
+  }
 
   return {
     totalStudents: students.length,
@@ -891,15 +964,14 @@ export const webGetDashboardStats = async (): Promise<DashboardStats> => {
 export const webGetStudentBalances = async (): Promise<StudentBalance[]> => {
   const students = await webGetAllStudents();
   const classes = await webGetAllClasses();
-  const payments = await webGetAllPayments();
 
   return students.map((student) => {
     const studentClasses = classes.filter((c) => c.studentId === student.id && c.status !== 'cancelled');
-    const studentPayments = payments.filter((p) => p.studentId === student.id && p.status === 'cobrado');
 
     const totalCharged = studentClasses.reduce((sum, c) => sum + c.totalAmount, 0);
-    const totalPaid = studentPayments.reduce((sum, p) => sum + p.amount, 0);
-    const balance = Math.max(totalCharged - totalPaid, 0);
+    const unpaidClasses = studentClasses.filter((c) => !c.isPaid);
+    const balance = unpaidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+    const totalPaid = Math.max(totalCharged - balance, 0);
 
     return {
       student,
@@ -908,6 +980,13 @@ export const webGetStudentBalances = async (): Promise<StudentBalance[]> => {
       balance,
     };
   });
+};
+
+export const webGetMonthlyIncome = async (
+  monthsCount: number = 6
+): Promise<{ month: string; amount: number }[]> => {
+  const stats = await webGetDashboardStats();
+  return stats.monthlyIncome.slice(-monthsCount);
 };
 
 export const webExportData = async (): Promise<any> => {

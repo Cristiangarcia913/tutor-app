@@ -1179,9 +1179,9 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
     monthEnd
   );
 
-  // Pending payments
-  const pendingPaymentsResult = await database.getFirstAsync<{ count: number; total: number }>(
-    `SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total FROM payments WHERE status = 'pendiente'`
+  // Pending payments (unpaid classes)
+  const pendingClassesResult = await database.getFirstAsync<{ count: number; total: number }>(
+    `SELECT COUNT(*) as count, COALESCE(SUM(totalAmount), 0) as total FROM class_sessions WHERE isPaid = 0 AND status != 'cancelled'`
   );
 
   // Upcoming classes
@@ -1190,7 +1190,7 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
   // Recent payments
   const recentPayments = await getRecentPayments(5);
 
-  // Monthly income for the last 6 months
+  // Monthly income for the last 6 months (eliminando meses vacíos previos al inicio de actividad)
   const monthlyIncome: { month: string; amount: number }[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -1211,14 +1211,19 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
     });
   }
 
+  // Si los meses iniciales son 0 (antes de que empezara a dar clases en octubre), quitarlos
+  while (monthlyIncome.length > 1 && monthlyIncome[0].amount === 0) {
+    monthlyIncome.shift();
+  }
+
   return {
     totalStudents: totalStudentsResult?.count ?? 0,
     activeStudents: activeStudentsResult?.count ?? 0,
     totalClassesThisMonth: classesThisMonthResult?.count ?? 0,
     totalClassesThisWeek: classesThisWeekResult?.count ?? 0,
     totalIncomeThisMonth: incomeThisMonthResult?.total ?? 0,
-    pendingPayments: pendingPaymentsResult?.count ?? 0,
-    pendingPaymentAmount: pendingPaymentsResult?.total ?? 0,
+    pendingPayments: pendingClassesResult?.count ?? 0,
+    pendingPaymentAmount: pendingClassesResult?.total ?? 0,
     upcomingClasses,
     recentPayments,
     monthlyIncome,
