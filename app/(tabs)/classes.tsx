@@ -75,6 +75,10 @@ export default function ClassesScreen() {
     }
   }, [db]);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   useFocusEffect(
     useCallback(() => {
       loadData();

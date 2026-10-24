@@ -100,6 +100,10 @@ export default function DashboardScreen() {
     }
   }, [db]);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   useFocusEffect(
     useCallback(() => {
       loadData();

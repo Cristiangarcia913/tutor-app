@@ -61,6 +61,10 @@ export default function StudentsScreen() {
     }
   }, [db]);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   useFocusEffect(
     useCallback(() => {
       loadData();

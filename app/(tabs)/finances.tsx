@@ -85,6 +85,10 @@ export default function FinancesScreen() {
     }
   }, [db]);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   useFocusEffect(
     useCallback(() => {
       loadData();
