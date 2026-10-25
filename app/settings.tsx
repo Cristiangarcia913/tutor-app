@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,6 @@ import {
   ActivityIndicator,
   Share,
   Platform,
-  Modal,
-  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -20,7 +18,6 @@ import * as Linking from 'expo-linking';
 import { useDatabase } from '../src/hooks/useDatabase';
 import {
   Card,
-  Input,
   Button,
   ConfirmDialog,
 } from '../src/components/common';
@@ -33,28 +30,15 @@ import {
 import { sendInstantReminderNotification } from '../src/utils/notifications';
 import {
   getCalendarSubscriptionUrl,
-  getCleanSubscriptionUrl,
   getCalendarHttpsUrl,
   getCleanHttpsUrl,
   downloadIcsFile,
 } from '../src/utils/calendarSync';
-import type { AppSettings } from '../src/types';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const db = useDatabase();
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  // Settings state
-  const [teacherName, setTeacherName] = useState('');
-  const [businessName, setBusinessName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [defaultRate, setDefaultRate] = useState('20');
-  const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
   // Calendar state
   const [syncingCalendar, setSyncingCalendar] = useState(false);
@@ -62,51 +46,6 @@ export default function SettingsScreen() {
   // Dialogs
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-
-  const loadData = useCallback(async () => {
-    try {
-      const s = await db.loadSettings();
-      if (s) {
-        setTeacherName(s.teacherName || '');
-        setBusinessName(s.businessName || '');
-        setEmail(s.email || '');
-        setPhone(s.phone || '');
-        setDefaultRate(s.defaultRate ? s.defaultRate.toString() : '20');
-      }
-    } catch (e) {
-      console.error('Error loading settings:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [db]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setFeedbackMsg(null);
-    try {
-      await db.updateSettings({
-        teacherName: teacherName.trim(),
-        businessName: businessName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        defaultRate: parseFloat(defaultRate) || 0,
-      });
-      setFeedbackMsg('✓ Ajustes guardados correctamente.');
-      setTimeout(() => setFeedbackMsg(null), 4000);
-      try {
-        Alert.alert('Guardado', 'Los ajustes se han actualizado correctamente.');
-      } catch {}
-    } catch (e) {
-      console.error('Error saving settings:', e);
-      setFeedbackMsg('Error al guardar los ajustes.');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   // Acciones de Calendario iPhone
   const handleSubscribeCalendar = async () => {
@@ -160,7 +99,7 @@ export default function SettingsScreen() {
       subjects.forEach((s) => {
         subjectMap[s.id] = s;
       });
-      downloadIcsFile(classes, studentMap, subjectMap, teacherName || 'Cristian');
+      downloadIcsFile(classes, studentMap, subjectMap, 'Cristian');
     } catch (e) {
       Alert.alert('Error', 'No se pudo descargar el archivo .ics.');
     }
@@ -205,7 +144,6 @@ export default function SettingsScreen() {
       await db.resetWithSeed();
       setShowResetConfirm(false);
       Alert.alert('Éxito', 'Se han cargado los datos de ejemplo.');
-      await loadData();
     } catch (e) {
       console.error('Error seeding:', e);
       Alert.alert('Error', 'No se pudieron cargar los datos de ejemplo.');
@@ -217,20 +155,11 @@ export default function SettingsScreen() {
       await db.clearAllData();
       setShowClearConfirm(false);
       Alert.alert('Éxito', 'Todos los datos han sido eliminados.');
-      await loadData();
     } catch (e) {
       console.error('Error clearing:', e);
       Alert.alert('Error', 'No se pudieron borrar los datos.');
     }
   };
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -240,25 +169,13 @@ export default function SettingsScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ajustes</Text>
-        <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.headerButton}>
-          {saving ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
-          ) : (
-            <Text style={styles.saveText}>Guardar</Text>
-          )}
-        </TouchableOpacity>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        {feedbackMsg && (
-          <View style={styles.feedbackBanner}>
-            <Ionicons name="checkmark-circle" size={18} color="#059669" />
-            <Text style={styles.feedbackText}>{feedbackMsg}</Text>
-          </View>
-        )}
         {/* Calendario de iPhone (iCloud) - Opción B Sincronización Automática */}
         <Card style={styles.card}>
           <View style={styles.sectionHeaderRow}>
@@ -336,75 +253,6 @@ export default function SettingsScreen() {
               <Text style={{ fontWeight: '700' }}>Si prefieres hacerlo manual:</Text> Copia el enlace y ve en tu iPhone a: <Text style={{ fontStyle: 'italic' }}>Ajustes ➔ Calendario ➔ Cuentas ➔ Añadir cuenta ➔ Otra ➔ Añadir calendario con suscripción</Text>, pega la URL y pulsa Guardar.
             </Text>
           </View>
-        </Card>
-
-        {/* Profile Card */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Perfil del Profesor</Text>
-
-          <Input
-            label="Tu Nombre"
-            value={teacherName}
-            onChangeText={setTeacherName}
-            placeholder="Ej: Carlos Gómez"
-          />
-
-          <Input
-            label="Nombre del Negocio o Academia"
-            value={businessName}
-            onChangeText={setBusinessName}
-            placeholder="Ej: Clases Particulares Carlos"
-          />
-
-          <Input
-            label="Email de Contacto"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            placeholder="tucorreo@ejemplo.com"
-          />
-
-          <Input
-            label="Teléfono"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="+34 600 000 000"
-          />
-        </Card>
-
-        {/* Defaults Card */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Preferencias de Clases</Text>
-
-          <Input
-            label="Tarifa por Defecto (€/hora)"
-            value={defaultRate}
-            onChangeText={setDefaultRate}
-            keyboardType="decimal-pad"
-            placeholder="20"
-          />
-
-          <Button
-            title={saving ? "Guardando cambios..." : "💾 Guardar Todos los Ajustes"}
-            onPress={handleSave}
-            disabled={saving}
-            style={{ marginTop: Spacing.md }}
-          />
-
-          <TouchableOpacity
-            style={[styles.manageRow, { marginTop: Spacing.md }]}
-            onPress={() => router.push('/subject/manage')}
-          >
-            <View style={styles.manageIconCol}>
-              <Ionicons name="library-outline" size={20} color={Colors.primary} />
-              <View>
-                <Text style={styles.manageTitle}>Gestionar Asignaturas</Text>
-                <Text style={styles.manageSubtitle}>Añade o edita asignaturas y sus tarifas</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
-          </TouchableOpacity>
         </Card>
 
         {/* Alertas y Recordatorios de Clase */}

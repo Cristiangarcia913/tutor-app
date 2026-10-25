@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   Colors,
@@ -16,6 +16,7 @@ interface StatCardProps {
   color: string;
   subtitle?: string;
   trend?: 'up' | 'down' | 'neutral';
+  onPress?: () => void;
 }
 
 const TREND_CONFIG = {
@@ -31,22 +32,25 @@ export default function StatCard({
   color,
   subtitle,
   trend,
+  onPress,
 }: StatCardProps) {
   const trendCfg = trend ? TREND_CONFIG[trend] : null;
 
-  return (
-    <View style={styles.card}>
+  const content = (
+    <>
       <View style={styles.header}>
         <View style={[styles.iconCircle, { backgroundColor: `${color}18` }]}>
           <Ionicons name={icon as any} size={20} color={color} />
         </View>
-        {trendCfg && (
+        {trendCfg ? (
           <Ionicons
             name={trendCfg.icon as any}
             size={18}
             color={trendCfg.color}
           />
-        )}
+        ) : onPress ? (
+          <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+        ) : null}
       </View>
       <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
         {value}
@@ -59,8 +63,22 @@ export default function StatCard({
           {subtitle}
         </Text>
       )}
-    </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={onPress}
+        style={styles.card}
+      >
+        {content}
+      </TouchableOpacity>
+    );
+  }
+
+  return <View style={styles.card}>{content}</View>;
 }
 
 const styles = StyleSheet.create({

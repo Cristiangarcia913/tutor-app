@@ -20,8 +20,6 @@ import {
   EmptyState,
 } from '../../src/components/common';
 import ClassCard from '../../src/components/classes/ClassCard';
-import PaymentCard from '../../src/components/finances/PaymentCard';
-import IncomeChart from '../../src/components/finances/IncomeChart';
 import ClassReminderAlert from '../../src/components/classes/ClassReminderAlert';
 import {
   Colors,
@@ -29,8 +27,9 @@ import {
   FontSizes,
   BorderRadius,
   formatCurrency,
+  formatDate,
 } from '../../src/constants/theme';
-import type { ClassSession, Payment, Student, Subject, DashboardStats, AppSettings } from '../../src/types';
+import type { ClassSession, Student, Subject, DashboardStats, AppSettings } from '../../src/types';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -49,9 +48,9 @@ export default function DashboardScreen() {
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [todayClasses, setTodayClasses] = useState<ClassSession[]>([]);
-  const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
-  const [monthlyIncome, setMonthlyIncome] = useState<{ month: string; amount: number }[]>([]);
+  const [nextClassDate, setNextClassDate] = useState<string>('');
+  const [nextDayClasses, setNextDayClasses] = useState<ClassSession[]>([]);
+  const [isTodayClass, setIsTodayClass] = useState<boolean>(true);
 
   const [students, setStudents] = useState<Record<string, Student>>({});
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
@@ -70,16 +69,12 @@ export default function DashboardScreen() {
         dashStats,
         settingsData,
         allClasses,
-        recent,
-        income,
         studentsList,
         subjectsList,
       ] = await Promise.all([
         db.loadDashboardStats(),
         db.loadSettings(),
         db.loadClasses(),
-        db.getRecentPayments(5),
-        db.getMonthlyIncome(6),
         db.loadStudents(),
         db.loadSubjects(),
       ]);
@@ -96,24 +91,52 @@ export default function DashboardScreen() {
       });
       setSubjects(subjectMap);
 
-      // Filtrar estrictamente solo las clases de hoy
       const now = new Date();
       const currentTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      const classesForToday = allClasses
-        .filter((c) => c.date === currentTodayStr && c.status !== 'cancelled')
-        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      const activeClasses = allClasses.filter((c) => c.status !== 'cancelled');
+
+      // Buscar clases desde hoy en adelante ordenadas por fecha y hora
+      const upcoming = activeClasses
+        .filter((c) => c.date >= currentTodayStr)
+        .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+
+      if (upcoming.length > 0) {
+        const closestDate = upcoming[0].date;
+        const classesOnClosestDay = upcoming.filter((c) => c.date === closestDate);
+        setNextClassDate(closestDate);
+        setNextDayClasses(classesOnClosestDay);
+        setIsTodayClass(closestDate === currentTodayStr);
+      } else {
+        setNextClassDate('');
+        setNextDayClasses([]);
+        setIsTodayClass(false);
+      }
 
       setStats(dashStats);
       setSettings(settingsData);
-      setTodayClasses(classesForToday);
-      setRecentPayments(recent);
-      setMonthlyIncome(income);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
     }
   }, [db]);
+
+  const nextClassDayLabel = useMemo(() => {
+    if (!nextClassDate) return '';
+    const [y, m, d] = nextClassDate.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const monthNames = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    const dayName = dayNames[dateObj.getDay()];
+    const monthName = monthNames[m - 1];
+    if (isTodayClass) {
+      return `Hoy (${dayName}, ${d} de ${monthName})`;
+    }
+    return `${dayName}, ${d} de ${monthName}`;
+  }, [nextClassDate, isTodayClass]);
 
   useEffect(() => {
     loadData();
@@ -183,7 +206,7 @@ export default function DashboardScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
           >
-        {/* KPI Grid */}
+        {/* KPI Grid - Tarjetas clickables hacia sus menús */}
         <View style={styles.grid}>
           <View style={styles.gridCol}>
             <StatCard
@@ -191,6 +214,7 @@ export default function DashboardScreen() {
               value={stats?.activeStudents || 0}
               icon="people-outline"
               color={Colors.primary}
+              onPress={() => router.push('/(tabs)/students')}
             />
           </View>
           <View style={styles.gridCol}>
@@ -199,6 +223,7 @@ export default function DashboardScreen() {
               value={stats?.totalClassesThisMonth || 0}
               icon="calendar-outline"
               color={Colors.secondary}
+              onPress={() => router.push('/(tabs)/classes')}
             />
           </View>
         </View>
@@ -210,6 +235,7 @@ export default function DashboardScreen() {
               value={formatCurrency(stats?.totalIncomeThisMonth || 0)}
               icon="trending-up-outline"
               color={Colors.success}
+              onPress={() => router.push('/(tabs)/finances')}
             />
           </View>
           <View style={styles.gridCol}>
@@ -222,6 +248,7 @@ export default function DashboardScreen() {
                   ? Colors.warning
                   : Colors.textTertiary
               }
+              onPress={() => router.push('/(tabs)/finances')}
             />
           </View>
         </View>
@@ -259,33 +286,39 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Alerta Destacada de Próxima Clase de Hoy */}
-        {todayClasses.length > 0 && (
+        {/* Alerta Destacada de Próxima Clase */}
+        {nextDayClasses.length > 0 && (
           <ClassReminderAlert
-            session={todayClasses[0]}
-            student={students[todayClasses[0].studentId]}
-            subject={subjects[todayClasses[0].subjectId]}
+            session={nextDayClasses[0]}
+            student={students[nextDayClasses[0].studentId]}
+            subject={subjects[nextDayClasses[0].subjectId]}
             teacherName={teacherName}
           />
         )}
 
-        {/* Clases de Hoy Section */}
+        {/* Futuro Día de Clase Section */}
         <SectionHeader
-          title={`Clases de Hoy (${todayClasses.length})`}
+          title={
+            isTodayClass
+              ? `Clases de Hoy (${nextDayClasses.length})`
+              : nextClassDate
+              ? `Futuro Día de Clase: ${nextClassDayLabel} (${nextDayClasses.length})`
+              : 'Futuro Día de Clase'
+          }
           actionLabel="Ver Calendario"
           onAction={() => router.push('/(tabs)/classes')}
         />
 
-        {todayClasses.length === 0 ? (
+        {nextDayClasses.length === 0 ? (
           <EmptyState
             icon="calendar-outline"
-            title="Sin clases para hoy"
-            description="Hoy no tienes clases programadas. ¡Disfruta de tu día o programa una nueva clase!"
+            title="Sin clases próximas"
+            description="No tienes clases programadas para los próximos días. ¡Programa una nueva clase cuando quieras!"
             actionLabel="Programar Clase"
-            onAction={() => router.push(`/class/new?date=${todayStr}`)}
+            onAction={() => router.push('/class/new')}
           />
         ) : (
-          todayClasses.map((cls) => (
+          nextDayClasses.map((cls) => (
             <ClassCard
               key={cls.id}
               session={cls}
@@ -297,36 +330,6 @@ export default function DashboardScreen() {
             />
           ))
         )}
-
-        {/* Recent Payments Section */}
-        <SectionHeader
-          title="Cobros Recientes"
-          actionLabel="Ver todos"
-          onAction={() => router.push('/(tabs)/finances')}
-        />
-
-        {recentPayments.length === 0 ? (
-          <EmptyState
-            icon="wallet-outline"
-            title="Sin cobros recientes"
-            description="Aún no has registrado pagos recibidos."
-            actionLabel="Registrar Pago"
-            onAction={() => router.push('/payment/new')}
-          />
-        ) : (
-          recentPayments.map((p) => (
-            <PaymentCard
-              key={p.id}
-              payment={p}
-              student={students[p.studentId]}
-              onPress={() => router.push(`/payment/${p.id}`)}
-              showStudentName={true}
-            />
-          ))
-        )}
-
-        {/* Income Chart */}
-        <IncomeChart data={monthlyIncome} title="Evolución de Ingresos Mensuales" />
       </ScrollView>
     </View>
   );

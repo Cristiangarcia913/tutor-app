@@ -34,7 +34,7 @@ import {
 import type { Payment, Student, StudentBalance, ClassSession, AppSettings } from '../../src/types';
 
 type ActiveTab = 'payments' | 'summary';
-type MethodFilter = 'all' | 'bizum' | 'efectivo';
+type StatusFilter = 'all' | 'pagada' | 'por_pagar';
 
 export default function FinancesScreen() {
   const insets = useSafeAreaInsets();
@@ -56,7 +56,7 @@ export default function FinancesScreen() {
   const [selectedClassesForWA, setSelectedClassesForWA] = useState<ClassSession[]>([]);
   const [showWAModal, setShowWAModal] = useState(false);
 
-  const [methodFilter, setMethodFilter] = useState<MethodFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const loadData = useCallback(async () => {
     try {
@@ -121,14 +121,15 @@ export default function FinancesScreen() {
   }, [studentBalances, payments]);
 
   const filteredPayments = useMemo(() => {
-    if (methodFilter === 'all') return payments;
-    return payments.filter((p) => p.method === methodFilter);
-  }, [payments, methodFilter]);
+    if (statusFilter === 'all') return payments;
+    if (statusFilter === 'pagada') return payments.filter((p) => p.status === 'cobrado');
+    return payments.filter((p) => p.status === 'pendiente');
+  }, [payments, statusFilter]);
 
-  const methodFilters: { key: MethodFilter; label: string }[] = [
+  const statusFilters: { key: StatusFilter; label: string }[] = [
     { key: 'all', label: 'Todos' },
-    { key: 'bizum', label: 'Bizum' },
-    { key: 'efectivo', label: 'Efectivo' },
+    { key: 'pagada', label: 'Pagadas' },
+    { key: 'por_pagar', label: 'Por pagar' },
   ];
 
   return (
@@ -197,19 +198,19 @@ export default function FinancesScreen() {
         </View>
       ) : activeTab === 'payments' ? (
         <>
-          {/* Method Filter Chips */}
+          {/* Status Filter Chips */}
           <View style={styles.chipsContainer}>
             <FlatList
               horizontal
               showsHorizontalScrollIndicator={false}
-              data={methodFilters}
+              data={statusFilters}
               keyExtractor={(item) => item.key}
               contentContainerStyle={styles.chipsList}
               renderItem={({ item }) => (
                 <FilterChip
                   label={item.label}
-                  selected={methodFilter === item.key}
-                  onPress={() => setMethodFilter(item.key)}
+                  selected={statusFilter === item.key}
+                  onPress={() => setStatusFilter(item.key)}
                 />
               )}
             />
@@ -231,8 +232,8 @@ export default function FinancesScreen() {
                 icon="wallet-outline"
                 title="No hay pagos"
                 description={
-                  methodFilter !== 'all'
-                    ? 'No se encontraron pagos con ese método.'
+                  statusFilter !== 'all'
+                    ? 'No se encontraron pagos con ese estado.'
                     : 'Aún no has registrado ningún pago. ¡Añade uno nuevo!'
                 }
                 actionLabel="Registrar Pago"
