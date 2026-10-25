@@ -565,9 +565,19 @@ export const webCancelClass = async (
   id: string,
   reason: string
 ): Promise<ClassSession | null> => {
+  const payments = await webGetAllPayments();
+  const filteredPayments = payments.filter((p) => {
+    if (p.classSessionIds && p.classSessionIds.includes(id)) {
+      return false;
+    }
+    return true;
+  });
+  storage.set('tutorapp_payments', filteredPayments);
+
   return webUpdateClass(id, {
     status: 'cancelled',
     cancelReason: reason,
+    isPaid: false,
   });
 };
 
@@ -1001,7 +1011,7 @@ export const webGetDashboardStats = async (): Promise<DashboardStats> => {
   const totalIncomeThisMonth = paidClassesAmount + standalonePaymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
 
   // Clases reales no pagadas (pendiente de cobro)
-  const unpaidClasses = classes.filter((c) => !c.isPaid && c.status !== 'cancelled');
+  const unpaidClasses = classes.filter((c) => !c.isPaid && c.status !== 'cancelled' && !c.cancelReason);
   const pendingPaymentAmount = unpaidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
   const pendingPayments = unpaidClasses.length;
 
@@ -1077,7 +1087,9 @@ export const webGetStudentBalances = async (): Promise<StudentBalance[]> => {
   const classes = await webGetAllClasses();
 
   return students.map((student) => {
-    const studentClasses = classes.filter((c) => c.studentId === student.id && c.status !== 'cancelled');
+    const studentClasses = classes.filter(
+      (c) => c.studentId === student.id && c.status !== 'cancelled' && !c.cancelReason
+    );
 
     const totalCharged = studentClasses.reduce((sum, c) => sum + c.totalAmount, 0);
     const unpaidClasses = studentClasses.filter((c) => !c.isPaid);

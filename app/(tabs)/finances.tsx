@@ -60,6 +60,10 @@ interface StudentFinancesGroup {
   totalChargedAmount: number;
 }
 
+const isClassCancelled = (c: ClassSession): boolean => {
+  return c.status === 'cancelled' || Boolean(c.cancelReason);
+};
+
 export default function FinancesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -76,12 +80,22 @@ export default function FinancesScreen() {
   const [studentBalances, setStudentBalances] = useState<StudentBalance[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
+  // Expanded student accordion state: when user taps on student, expands their classes
+  const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
+
   // WhatsApp Report modal state
   const [selectedStudentForWA, setSelectedStudentForWA] = useState<Student | null>(null);
   const [selectedClassesForWA, setSelectedClassesForWA] = useState<ClassSession[]>([]);
   const [showWAModal, setShowWAModal] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+
+  const toggleStudentExpanded = (studentId: string) => {
+    setExpandedStudents((prev) => ({
+      ...prev,
+      [studentId]: !prev[studentId],
+    }));
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -140,30 +154,38 @@ export default function FinancesScreen() {
     setRefreshing(false);
   }, [loadData]);
 
-  // Global calculations
+  // Global calculations (strictly ignore cancelled classes)
   const totalFacturado = useMemo(() => {
     const classesTotal = classes
-      .filter((c) => c.status !== 'cancelled')
+      .filter((c) => !isClassCancelled(c))
       .reduce((sum, c) => sum + c.totalAmount, 0);
     const standalonePayments = payments
-      .filter((p) => (!p.classSessionIds || p.classSessionIds.length === 0) && p.status === 'cobrado')
+      .filter(
+        (p) =>
+          (!p.classSessionIds || p.classSessionIds.length === 0) &&
+          p.status === 'cobrado'
+      )
       .reduce((sum, p) => sum + p.amount, 0);
     return classesTotal + standalonePayments;
   }, [classes, payments]);
 
   const totalCollected = useMemo(() => {
     const paidClassesAmount = classes
-      .filter((c) => c.isPaid && c.status !== 'cancelled')
+      .filter((c) => c.isPaid && !isClassCancelled(c))
       .reduce((sum, c) => sum + c.totalAmount, 0);
     const standalonePayments = payments
-      .filter((p) => (!p.classSessionIds || p.classSessionIds.length === 0) && p.status === 'cobrado')
+      .filter(
+        (p) =>
+          (!p.classSessionIds || p.classSessionIds.length === 0) &&
+          p.status === 'cobrado'
+      )
       .reduce((sum, p) => sum + p.amount, 0);
     return paidClassesAmount + standalonePayments;
   }, [classes, payments]);
 
   const totalPending = useMemo(() => {
     const unpaidClassesAmount = classes
-      .filter((c) => !c.isPaid && c.status !== 'cancelled')
+      .filter((c) => !c.isPaid && !isClassCancelled(c))
       .reduce((sum, c) => sum + c.totalAmount, 0);
     return unpaidClassesAmount;
   }, [classes]);
@@ -171,9 +193,15 @@ export default function FinancesScreen() {
   // Group classes and payments by student
   const studentGroups = useMemo<StudentFinancesGroup[]>(() => {
     const studentList = Object.values(students);
+    const cancelledClassIds = new Set(
+      classes.filter((c) => isClassCancelled(c)).map((c) => c.id)
+    );
 
     return studentList.map((student) => {
-      const sClasses = classes.filter((c) => c.studentId === student.id && c.status !== 'cancelled');
+      // Exclude cancelled classes
+      const sClasses = classes.filter(
+        (c) => c.studentId === student.id && !isClassCancelled(c)
+      );
 
       const pendingClasses: StudentClassItem[] = sClasses
         .filter((c) => !c.isPaid)
@@ -207,10 +235,16 @@ export default function FinancesScreen() {
           classSession: c,
         }));
 
-      // Include standalone payments if any
-      const sPayments = payments.filter(
-        (p) => p.studentId === student.id && (!p.classSessionIds || p.classSessionIds.length === 0)
-      );
+      // Standalone payments (not cancelled and not linked to cancelled classes)
+      const sPayments = payments.filter((p) => {
+        if (p.studentId !== student.id) return false;
+        if (p.status === 'cancelado') return false;
+        if (p.classSessionIds && p.classSessionIds.some((id) => cancelledClassIds.has(id))) {
+          return false;
+        }
+        return !p.classSessionIds || p.classSessionIds.length === 0;
+      });
+
       sPayments.forEach((p) => {
         if (p.status === 'cobrado') {
           paidClasses.push({
@@ -274,7 +308,7 @@ export default function FinancesScreen() {
   const handleMarkStudentAllPaid = async (studentId: string) => {
     try {
       const studentUnpaidClasses = classes.filter(
-        (c) => c.studentId === studentId && !c.isPaid && c.status !== 'cancelled'
+        (c) => c.studentId === studentId && !c.isPaid && !isClassCancelled(c)
       );
       if (studentUnpaidClasses.length === 0) return;
 
@@ -379,7 +413,7 @@ export default function FinancesScreen() {
             />
           </View>
 
-          {/* Students Grouped Finances List */}
+          {/* Students Grouped Finances List (Accordion: tap student to expand classes) */}
           <FlatList
             data={filteredStudentGroups}
             keyExtractor={(item) => item.student.id}
@@ -412,6 +446,10 @@ export default function FinancesScreen() {
               />
             }
             renderItem={({ item: group }) => {
+              const isExpanded = Boolean(expandedStudents[group.student.id]);
+              const pendingCount = group.pendingClasses.length;
+              const paidCount = group.paidClasses.length;
+
               const itemsToShow: StudentClassItem[] =
                 statusFilter === 'por_pagar'
                   ? group.pendingClasses
@@ -419,12 +457,14 @@ export default function FinancesScreen() {
                   ? group.paidClasses
                   : [...group.pendingClasses, ...group.paidClasses];
 
-              const pendingCount = group.pendingClasses.length;
-
               return (
                 <Card style={styles.studentCard}>
-                  {/* Student Header */}
-                  <View style={styles.studentCardHeader}>
+                  {/* Tap Student Header to toggle open/close classes */}
+                  <TouchableOpacity
+                    style={styles.studentCardHeader}
+                    activeOpacity={0.7}
+                    onPress={() => toggleStudentExpanded(group.student.id)}
+                  >
                     <View style={styles.studentHeaderLeft}>
                       <Avatar
                         firstName={group.student.firstName}
@@ -440,99 +480,119 @@ export default function FinancesScreen() {
                           {group.student.course ? `${group.student.course} • ` : ''}
                           {pendingCount > 0 ? (
                             <Text style={{ color: Colors.warning, fontWeight: '700' }}>
-                              {pendingCount} por pagar ({formatCurrency(group.totalPendingAmount)})
+                              {pendingCount} {pendingCount === 1 ? 'clase por pagar' : 'clases por pagar'} ({formatCurrency(group.totalPendingAmount)})
                             </Text>
                           ) : (
                             <Text style={{ color: Colors.success, fontWeight: '700' }}>
-                              ✓ Al día
+                              ✓ Al día ({paidCount} {paidCount === 1 ? 'pagada' : 'pagadas'})
                             </Text>
                           )}
                         </Text>
                       </View>
                     </View>
 
-                    {/* Batch Pay Button for this student */}
-                    {pendingCount > 0 && (
-                      <TouchableOpacity
-                        style={styles.batchPayButton}
-                        activeOpacity={0.85}
-                        onPress={() => handleMarkStudentAllPaid(group.student.id)}
-                      >
-                        <Ionicons name="checkmark-done" size={14} color="#FFFFFF" />
-                        <Text style={styles.batchPayText}>
-                          Cobrar todo ({formatCurrency(group.totalPendingAmount)})
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {/* Classes List */}
-                  <View style={styles.itemsListContainer}>
-                    {itemsToShow.map((item) => (
-                      <View key={item.id} style={styles.classItemRow}>
-                        <View style={styles.classItemInfo}>
-                          <View style={styles.classItemTop}>
-                            <View
-                              style={[
-                                styles.statusDot,
-                                { backgroundColor: item.isPaid ? Colors.success : Colors.warning },
-                              ]}
-                            />
-                            <Text style={styles.classItemDate}>{formatDate(item.date)}</Text>
-                            {item.startTime ? (
-                              <Text style={styles.classItemTime}>• {item.startTime}</Text>
-                            ) : null}
-                          </View>
-                          <Text style={styles.classItemSubject}>
-                            {item.subjectName || item.concept || 'Matemáticas'}
-                            {item.duration ? ` (${item.duration} min)` : ''}
+                    <View style={styles.studentHeaderRight}>
+                      {/* Batch Pay Button for this student */}
+                      {pendingCount > 0 && (
+                        <TouchableOpacity
+                          style={styles.batchPayButton}
+                          activeOpacity={0.85}
+                          onPress={() => handleMarkStudentAllPaid(group.student.id)}
+                        >
+                          <Ionicons name="checkmark-done" size={13} color="#FFFFFF" />
+                          <Text style={styles.batchPayText}>
+                            Cobrar ({formatCurrency(group.totalPendingAmount)})
                           </Text>
-                        </View>
+                        </TouchableOpacity>
+                      )}
 
-                        <View style={styles.classItemRight}>
-                          <Text
-                            style={[
-                              styles.classItemAmount,
-                              { color: item.isPaid ? Colors.success : Colors.text },
-                            ]}
-                          >
-                            {formatCurrency(item.amount)}
-                          </Text>
-
-                          {item.type === 'class' ? (
-                            <TouchableOpacity
-                              style={[
-                                styles.itemPayToggleBtn,
-                                item.isPaid ? styles.itemPayToggleBtnPaid : styles.itemPayToggleBtnPending,
-                              ]}
-                              activeOpacity={0.8}
-                              onPress={() => handleToggleClassPaid(item.id)}
-                            >
-                              <Ionicons
-                                name={item.isPaid ? 'checkmark-circle' : 'cash-outline'}
-                                size={14}
-                                color={item.isPaid ? Colors.success : '#FFFFFF'}
-                              />
-                              <Text
-                                style={[
-                                  styles.itemPayToggleText,
-                                  item.isPaid ? styles.itemPayToggleTextPaid : styles.itemPayToggleTextPending,
-                                ]}
-                              >
-                                {item.isPaid ? 'Pagada' : 'Cobrar'}
-                              </Text>
-                            </TouchableOpacity>
-                          ) : (
-                            <View style={styles.itemPaidBadge}>
-                              <Text style={styles.itemPaidBadgeText}>
-                                {item.isPaid ? 'Cobrado' : 'Pendiente'}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
+                      {/* Expand / Collapse Chevron */}
+                      <View style={styles.chevronBox}>
+                        <Ionicons
+                          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                          size={20}
+                          color={Colors.primary}
+                        />
                       </View>
-                    ))}
-                  </View>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Expanded Classes List: only shown when student is tapped */}
+                  {isExpanded && (
+                    <View style={styles.itemsListContainer}>
+                      <View style={styles.itemsHeaderHint}>
+                        <Ionicons name="list-outline" size={13} color={Colors.textTertiary} />
+                        <Text style={styles.itemsHeaderHintText}>
+                          Clases de {group.student.firstName} ({itemsToShow.length})
+                        </Text>
+                      </View>
+
+                      {itemsToShow.map((item) => (
+                        <View key={item.id} style={styles.classItemRow}>
+                          <View style={styles.classItemInfo}>
+                            <View style={styles.classItemTop}>
+                              <View
+                                style={[
+                                  styles.statusDot,
+                                  { backgroundColor: item.isPaid ? Colors.success : Colors.warning },
+                                ]}
+                              />
+                              <Text style={styles.classItemDate}>{formatDate(item.date)}</Text>
+                              {item.startTime ? (
+                                <Text style={styles.classItemTime}>• {item.startTime}</Text>
+                              ) : null}
+                            </View>
+                            <Text style={styles.classItemSubject}>
+                              {item.subjectName || item.concept || 'Matemáticas'}
+                              {item.duration ? ` (${item.duration} min)` : ''}
+                            </Text>
+                          </View>
+
+                          <View style={styles.classItemRight}>
+                            <Text
+                              style={[
+                                styles.classItemAmount,
+                                { color: item.isPaid ? Colors.success : Colors.text },
+                              ]}
+                            >
+                              {formatCurrency(item.amount)}
+                            </Text>
+
+                            {item.type === 'class' ? (
+                              <TouchableOpacity
+                                style={[
+                                  styles.itemPayToggleBtn,
+                                  item.isPaid ? styles.itemPayToggleBtnPaid : styles.itemPayToggleBtnPending,
+                                ]}
+                                activeOpacity={0.8}
+                                onPress={() => handleToggleClassPaid(item.id)}
+                              >
+                                <Ionicons
+                                  name={item.isPaid ? 'checkmark-circle' : 'cash-outline'}
+                                  size={14}
+                                  color={item.isPaid ? Colors.success : '#FFFFFF'}
+                                />
+                                <Text
+                                  style={[
+                                    styles.itemPayToggleText,
+                                    item.isPaid ? styles.itemPayToggleTextPaid : styles.itemPayToggleTextPending,
+                                  ]}
+                                >
+                                  {item.isPaid ? 'Pagada' : 'Cobrar'}
+                                </Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <View style={styles.itemPaidBadge}>
+                                <Text style={styles.itemPaidBadgeText}>
+                                  {item.isPaid ? 'Cobrado' : 'Pendiente'}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </Card>
               );
             }}
@@ -644,7 +704,8 @@ export default function FinancesScreen() {
                     onPress={async () => {
                       setSelectedStudentForWA(item.student);
                       const cls = await db.getClassesByStudent(item.student.id);
-                      setSelectedClassesForWA(cls);
+                      // Filter out cancelled classes for the WhatsApp report
+                      setSelectedClassesForWA(cls.filter((c) => !isClassCancelled(c)));
                       setShowWAModal(true);
                     }}
                   >
@@ -779,24 +840,21 @@ const styles = StyleSheet.create({
 
   // Student Group Card
   studentCard: {
-    marginBottom: Spacing.md,
-    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
   },
   studentCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    flexWrap: 'wrap',
-    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
   },
   studentHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    minWidth: 180,
+    minWidth: 160,
   },
   studentCardName: {
     fontSize: FontSizes.md,
@@ -808,13 +866,18 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
+  studentHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   batchPayButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: Colors.success,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: BorderRadius.sm,
   },
   batchPayText: {
@@ -822,14 +885,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+  chevronBox: {
+    padding: 4,
+  },
   itemsListContainer: {
+    marginTop: Spacing.xs,
     paddingTop: Spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+  },
+  itemsHeaderHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  itemsHeaderHintText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
   },
   classItemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 8,
+    paddingHorizontal: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },

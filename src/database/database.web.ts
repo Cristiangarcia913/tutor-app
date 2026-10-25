@@ -321,9 +321,10 @@ export const getStudentTotalPaid = async (studentId: string): Promise<number> =>
 
 export const getStudentPendingAmount = async (studentId: string): Promise<number> => {
   const classes = await web.webGetAllClasses({ studentId });
+  const activeClasses = classes.filter((c) => c.status !== 'cancelled' && !c.cancelReason);
   const payments = await web.webGetAllPayments({ studentId });
 
-  const totalCharged = classes.reduce((sum, c) => sum + c.totalAmount, 0);
+  const totalCharged = activeClasses.reduce((sum, c) => sum + c.totalAmount, 0);
   const totalPaid = payments
     .filter((p) => p.status === 'cobrado')
     .reduce((sum, p) => sum + p.amount, 0);
