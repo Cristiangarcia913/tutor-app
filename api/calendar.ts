@@ -107,14 +107,14 @@ const buildICalFromItems = (
       const startStr = formatICalDate(item.date, item.startTime);
       const endStr = formatICalDate(item.date, item.endTime || '18:00');
       const paymentStatus = item.isPaid ? 'Pagada ✓' : 'Pendiente de cobro ⏳';
-      const desc = `Clase de Matemáticas con ${studentName}\\nEstado: ${paymentStatus}\\nDuración: ${item.duration || 60} min${item.notes ? '\\nNotas: ' + item.notes : ''}`;
+      const desc = `Clase con ${studentName}\\nEstado: ${paymentStatus}\\nDuración: ${item.duration || 60} min${item.notes ? '\\nNotas: ' + item.notes : ''}`;
 
       lines.push('BEGIN:VEVENT');
       lines.push(`UID:tutorapp-${item.id || idx}-${item.date}@tutorapp.es`);
       lines.push(`DTSTAMP:${now}`);
       lines.push(`DTSTART;TZID=Europe/Madrid:${startStr}`);
       lines.push(`DTEND;TZID=Europe/Madrid:${endStr}`);
-      lines.push(`SUMMARY:${escapeICalText(`Matemáticas - ${studentName}`)}`);
+      lines.push(`SUMMARY:${escapeICalText(`Clase - ${studentName}`)}`);
       lines.push(`LOCATION:${escapeICalText(item.location || 'Presencial')}`);
       lines.push(`DESCRIPTION:${escapeICalText(desc)}`);
       lines.push('STATUS:CONFIRMED');

@@ -100,14 +100,14 @@ export const generateICalendarData = (
       }
 
       const paymentStatus = cls.isPaid ? 'Pagada ✓' : 'Pendiente de cobro ⏳';
-      const description = `Clase de Matemáticas con ${studentName}\\nEstado: ${paymentStatus}\\nDuración: ${cls.duration} min${cls.notes ? '\\nNotas: ' + cls.notes : ''}`;
+      const description = `Clase con ${studentName}\\nEstado: ${paymentStatus}\\nDuración: ${cls.duration} min${cls.notes ? '\\nNotas: ' + cls.notes : ''}`;
 
       lines.push('BEGIN:VEVENT');
       lines.push(`UID:tutorapp-${cls.id}-${cls.date}@tutorapp.es`);
       lines.push(`DTSTAMP:${now}`);
       lines.push(`DTSTART;TZID=Europe/Madrid:${startStr}`);
       lines.push(`DTEND;TZID=Europe/Madrid:${endStr}`);
-      lines.push(`SUMMARY:${escapeICalText(`Matemáticas - ${studentName}`)}`);
+      lines.push(`SUMMARY:${escapeICalText(`Clase - ${studentName}`)}`);
       lines.push(`LOCATION:${escapeICalText(locationText)}`);
       lines.push(`DESCRIPTION:${escapeICalText(description)}`);
       lines.push('STATUS:CONFIRMED');
