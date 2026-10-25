@@ -20,7 +20,6 @@ import {
   EmptyState,
 } from '../../src/components/common';
 import ClassCard from '../../src/components/classes/ClassCard';
-import ClassReminderAlert from '../../src/components/classes/ClassReminderAlert';
 import {
   Colors,
   Spacing,
@@ -285,16 +284,6 @@ export default function DashboardScreen() {
             <Text style={styles.shortcutText}>Nuevo Alumno</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Alerta Destacada de Próxima Clase */}
-        {nextDayClasses.length > 0 && (
-          <ClassReminderAlert
-            session={nextDayClasses[0]}
-            student={students[nextDayClasses[0].studentId]}
-            subject={subjects[nextDayClasses[0].subjectId]}
-            teacherName={teacherName}
-          />
-        )}
 
         {/* Futuro Día de Clase Section */}
         <SectionHeader

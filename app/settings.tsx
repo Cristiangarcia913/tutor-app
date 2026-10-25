@@ -27,7 +27,6 @@ import {
   FontSizes,
   BorderRadius,
 } from '../src/constants/theme';
-import { sendInstantReminderNotification } from '../src/utils/notifications';
 import {
   getCalendarSubscriptionUrl,
   getCalendarHttpsUrl,
@@ -253,32 +252,6 @@ export default function SettingsScreen() {
               <Text style={{ fontWeight: '700' }}>Si prefieres hacerlo manual:</Text> Copia el enlace y ve en tu iPhone a: <Text style={{ fontStyle: 'italic' }}>Ajustes ➔ Calendario ➔ Cuentas ➔ Añadir cuenta ➔ Otra ➔ Añadir calendario con suscripción</Text>, pega la URL y pulsa Guardar.
             </Text>
           </View>
-        </Card>
-
-        {/* Alertas y Recordatorios de Clase */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Alertas y Recordatorios de Clase</Text>
-          <Text style={[styles.manageSubtitle, { marginBottom: Spacing.sm }]}>
-            Notificaciones automáticas que avisan con antelación de cada clase y su lugar exacto (Presencial con dirección, A domicilio u Online por videollamada).
-          </Text>
-
-          <Button
-            title="Probar Alerta de Recordatorio Ahora"
-            variant="outline"
-            icon="notifications-outline"
-            onPress={async () => {
-              const ok = await sendInstantReminderNotification(
-                '🔔 Recordatorio de Clase: Matemáticas',
-                'Próxima clase programada.\nLugar: 📍 Presencial (en el aula habitual).'
-              );
-              if (ok) {
-                Alert.alert(
-                  '¡Alerta enviada!',
-                  'Se ha emitido la notificación de prueba con el recordatorio y lugar de la clase.'
-                );
-              }
-            }}
-          />
         </Card>
 
         {/* Database Management Card */}

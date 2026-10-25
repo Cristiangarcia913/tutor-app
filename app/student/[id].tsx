@@ -243,13 +243,6 @@ export default function StudentDetailScreen() {
                   </Text>
                 </View>
               ) : null}
-
-              {student.phone ? (
-                <View style={styles.metaRow}>
-                  <Ionicons name="call-outline" size={14} color={Colors.textSecondary} />
-                  <Text style={styles.metaText}>{student.phone}</Text>
-                </View>
-              ) : null}
             </View>
           </View>
 
@@ -259,13 +252,6 @@ export default function StudentDetailScreen() {
               <View style={styles.detailItem}>
                 <Text style={styles.detailLabel}>Curso Escolar</Text>
                 <Text style={[styles.detailValue, { fontWeight: '700' }]}>{student.course}</Text>
-              </View>
-            ) : null}
-
-            {student.phone ? (
-              <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>Teléfono</Text>
-                <Text style={styles.detailValue}>{student.phone}</Text>
               </View>
             ) : null}
 

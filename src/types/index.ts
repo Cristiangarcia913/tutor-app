@@ -19,7 +19,7 @@ export interface Student {
   course?: string; // Curso escolar del alumno (e.g. 2º Bachillerato, 3º ESO)
   accessCode?: string; // Código de acceso único para estudiante y padres (ej: ALE-7821)
   email?: string;
-  phone: string;
+  phone?: string;
   parentName?: string;
   parentPhone?: string;
   address?: string;
@@ -131,7 +131,7 @@ export interface AppSettings {
   businessName: string;
   teacherName: string;
   email: string;
-  phone: string;
+  phone?: string;
   defaultRate: number;
   currency: string;
   theme: 'light' | 'dark' | 'system';

@@ -32,7 +32,6 @@ import {
   getStatusLabel,
   getLocationLabel,
 } from '../../src/constants/theme';
-import ClassReminderAlert from '../../src/components/classes/ClassReminderAlert';
 import CancelClassModal from '../../src/components/classes/CancelClassModal';
 import RescheduleClassModal from '../../src/components/classes/RescheduleClassModal';
 import type { ClassSession, Student, Subject } from '../../src/types';
@@ -330,15 +329,6 @@ export default function ClassDetailScreen() {
               </View>
             </View>
           </Card>
-        )}
-
-        {/* Alerta de Recordatorio de Clase y Aviso por WhatsApp */}
-        {session.status === 'scheduled' && (
-          <ClassReminderAlert
-            session={session}
-            student={student || undefined}
-            subject={subject || undefined}
-          />
         )}
 
         {/* Payment Status & Action Card */}

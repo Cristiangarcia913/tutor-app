@@ -52,7 +52,6 @@ export default function NewStudentScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [course, setCourse] = useState('');
-  const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [parentName, setParentName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
@@ -105,7 +104,7 @@ export default function NewStudentScreen() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         course: course.trim() || undefined,
-        phone: phone.trim(),
+        phone: '',
         address: address.trim() || undefined,
         parentName: parentName.trim() || undefined,
         parentPhone: parentPhone.trim() || undefined,
@@ -192,14 +191,6 @@ export default function NewStudentScreen() {
           value={course}
           onChangeText={setCourse}
           placeholder="Ej: 2º Bachillerato, 3º ESO, 1º Primaria..."
-        />
-
-        <Input
-          label="Teléfono del Alumno"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-          placeholder="+34 600 000 000"
         />
 
         <Input
