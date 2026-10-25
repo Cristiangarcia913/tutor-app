@@ -187,6 +187,20 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         // Ignorar restricciones en entornos de solo lectura
       }
 
+      // Sincronizar en la nube global (ntfy.sh) para que todas las instancias serverless tengan el calendario actualizado
+      try {
+        await fetch(`https://ntfy.sh/tutorapp_cal_${key}`, {
+          method: 'POST',
+          body: icsData,
+          headers: {
+            'Title': 'TutorApp Calendar Sync',
+            'Tags': 'calendar',
+          },
+        });
+      } catch (cloudErr) {
+        // Fallback silencioso si falla la conexión externa
+      }
+
       res.status(200);
       return res.json({ success: true, updated: new Date().toISOString() });
     } catch (e: any) {
@@ -197,24 +211,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   // GET: Apple Calendar o cualquier cliente iCal solicita el feed de suscripción
   if (req.method === 'GET' || !req.method) {
-    let icsContent = '';
+    let icsContent = memoryCache[key];
 
-    // 1. Si la URL incluye clases codificadas en el parámetro 'd', decodificarlas directamente
-    const dParam = (req.query.d as string) || '';
-    if (dParam) {
-      const decodedItems = decodeClassesFromUrl(dParam);
-      if (decodedItems.length > 0) {
-        icsContent = buildICalFromItems(decodedItems);
-        // Guardar en cache para peticiones posteriores sin parámetro
-        memoryCache[key] = icsContent;
-      }
-    }
-
-    // 2. Si no hay 'd' o no se pudo decodificar, buscar en memoria o archivo local
-    if (!icsContent) {
-      icsContent = memoryCache[key];
-    }
-
+    // 1. Si no está en memoria, comprobar en /tmp local
     if (!icsContent) {
       try {
         const filePath = getCacheFilePath(key);
@@ -226,7 +225,48 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    // 3. Fallback: generar calendario inicial perfectamente válido con VTIMEZONE
+    // 2. Si no está en memoria ni /tmp, consultar la nube global (ntfy.sh)
+    if (!icsContent) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const cloudRes = await fetch(`https://ntfy.sh/tutorapp_cal_${key}/json?poll=1`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (cloudRes.ok) {
+          const rawText = await cloudRes.text();
+          const lines = rawText.trim().split('\n');
+          for (let i = lines.length - 1; i >= 0; i--) {
+            try {
+              const msg = JSON.parse(lines[i]);
+              if (msg.message && msg.message.includes('BEGIN:VCALENDAR')) {
+                icsContent = msg.message;
+                memoryCache[key] = icsContent;
+                try {
+                  fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
+                } catch {}
+                break;
+              }
+            } catch {}
+          }
+        }
+      } catch (cloudGetErr) {
+        // Fallback
+      }
+    }
+
+    // 3. Si aún no hay datos y la petición incluye el parámetro de respaldo 'd', decodificarlo
+    if (!icsContent && req.query.d) {
+      const decodedItems = decodeClassesFromUrl(req.query.d as string);
+      if (decodedItems.length > 0) {
+        icsContent = buildICalFromItems(decodedItems);
+        memoryCache[key] = icsContent;
+      }
+    }
+
+    // 4. Si aún no hay nada (primer arranque sin clases), devolver evento de bienvenida válido
     if (!icsContent) {
       icsContent = buildICalFromItems([]);
     }

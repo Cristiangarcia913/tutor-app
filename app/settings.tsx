@@ -181,18 +181,10 @@ export default function SettingsScreen() {
   // Acciones de Calendario iPhone
   const handleSubscribeCalendar = async () => {
     try {
-      const [classes, students] = await Promise.all([
-        db.loadClasses(),
-        db.loadStudents(),
-      ]);
-      const studentMap: Record<string, any> = {};
-      students.forEach((s) => {
-        studentMap[s.id] = s;
-      });
-      // Sincronizar en la nube
+      // Sincronizar clases actuales al backend primero
       await db.syncCalendarNow();
 
-      const url = getCalendarSubscriptionUrl(classes, studentMap, 'cristian');
+      const url = getCalendarSubscriptionUrl('cristian');
       if (!url) {
         Alert.alert('Error', 'No se pudo generar la URL de suscripción.');
         return;
@@ -209,20 +201,12 @@ export default function SettingsScreen() {
 
   const handleCopyCalendarUrl = async () => {
     try {
-      const [classes, students] = await Promise.all([
-        db.loadClasses(),
-        db.loadStudents(),
-      ]);
-      const studentMap: Record<string, any> = {};
-      students.forEach((s) => {
-        studentMap[s.id] = s;
-      });
       await db.syncCalendarNow();
-      const url = getCalendarHttpsUrl(classes, studentMap, 'cristian');
+      const url = getCalendarHttpsUrl('cristian');
       await Clipboard.setStringAsync(url);
       Alert.alert(
         '¡Enlace Copiado!',
-        'El enlace directo con tus clases ha sido copiado. Si prefieres añadirlo manual en tu iPhone, ve a:\n\nAjustes > Calendario > Cuentas > Añadir cuenta > Otra > Añadir calendario con suscripción.'
+        'El enlace oficial del calendario ha sido copiado. Pégalo en:\n\nAjustes > Calendario > Cuentas > Añadir cuenta > Otra > Añadir calendario con suscripción.'
       );
     } catch {
       const cleanUrl = getCleanHttpsUrl('cristian');

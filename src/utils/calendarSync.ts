@@ -165,17 +165,12 @@ export const encodeClassesForUrl = (
 
 /**
  * Obtiene la URL de suscripción para Apple Calendar (webcal://)
+ * Utiliza la ruta limpia /calendar.ics para que Apple Calendar consulte siempre el feed en vivo
  */
-export const getCalendarSubscriptionUrl = (
-  classes: ClassSession[] = [],
-  students: Record<string, Student> = {},
-  feedKey: string = 'cristian'
-): string => {
+export const getCalendarSubscriptionUrl = (feedKey: string = 'cristian'): string => {
   if (typeof window === 'undefined') return '';
   const host = window.location.host;
-  const d = encodeClassesForUrl(classes, students);
-  const query = d ? `?d=${d}` : `?key=${feedKey}`;
-  return `webcal://${host}/calendar.ics${query}`;
+  return `webcal://${host}/calendar.ics`;
 };
 
 /**
@@ -188,18 +183,12 @@ export const getCleanSubscriptionUrl = (feedKey: string = 'cristian'): string =>
 };
 
 /**
- * Obtiene la URL HTTPS estándar para el feed .ics
+ * Obtiene la URL HTTPS estándar para el feed .ics en vivo
  */
-export const getCalendarHttpsUrl = (
-  classes: ClassSession[] = [],
-  students: Record<string, Student> = {},
-  feedKey: string = 'cristian'
-): string => {
+export const getCalendarHttpsUrl = (feedKey: string = 'cristian'): string => {
   if (typeof window === 'undefined') return '';
   const origin = window.location.origin;
-  const d = encodeClassesForUrl(classes, students);
-  const query = d ? `?d=${d}` : `?key=${feedKey}`;
-  return `${origin}/calendar.ics${query}`;
+  return `${origin}/calendar.ics`;
 };
 
 /**
