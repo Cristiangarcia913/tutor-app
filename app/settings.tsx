@@ -40,7 +40,9 @@ import {
 } from '../src/utils/security';
 import {
   getCalendarSubscriptionUrl,
+  getCleanSubscriptionUrl,
   getCalendarHttpsUrl,
+  getCleanHttpsUrl,
   downloadIcsFile,
 } from '../src/utils/calendarSync';
 import type { AppSettings } from '../src/types';
@@ -177,29 +179,55 @@ export default function SettingsScreen() {
   };
 
   // Acciones de Calendario iPhone
-  const handleSubscribeCalendar = () => {
-    const url = getCalendarSubscriptionUrl('cristian');
-    if (!url) {
-      Alert.alert('Error', 'No se pudo generar la URL de suscripción.');
-      return;
-    }
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.location.href = url;
-    } else {
-      Linking.openURL(url);
+  const handleSubscribeCalendar = async () => {
+    try {
+      const [classes, students] = await Promise.all([
+        db.loadClasses(),
+        db.loadStudents(),
+      ]);
+      const studentMap: Record<string, any> = {};
+      students.forEach((s) => {
+        studentMap[s.id] = s;
+      });
+      // Sincronizar en la nube
+      await db.syncCalendarNow();
+
+      const url = getCalendarSubscriptionUrl(classes, studentMap, 'cristian');
+      if (!url) {
+        Alert.alert('Error', 'No se pudo generar la URL de suscripción.');
+        return;
+      }
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.location.href = url;
+      } else {
+        Linking.openURL(url);
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Error al iniciar suscripción.');
     }
   };
 
   const handleCopyCalendarUrl = async () => {
-    const url = getCalendarHttpsUrl('cristian');
     try {
+      const [classes, students] = await Promise.all([
+        db.loadClasses(),
+        db.loadStudents(),
+      ]);
+      const studentMap: Record<string, any> = {};
+      students.forEach((s) => {
+        studentMap[s.id] = s;
+      });
+      await db.syncCalendarNow();
+      const url = getCalendarHttpsUrl(classes, studentMap, 'cristian');
       await Clipboard.setStringAsync(url);
       Alert.alert(
         '¡Enlace Copiado!',
-        'El enlace del calendario ha sido copiado al portapapeles. Puedes pegarlo en Ajustes > Calendario de tu iPhone o en tu Mac.'
+        'El enlace directo con tus clases ha sido copiado. Si prefieres añadirlo manual en tu iPhone, ve a:\n\nAjustes > Calendario > Cuentas > Añadir cuenta > Otra > Añadir calendario con suscripción.'
       );
     } catch {
-      Alert.alert('Enlace del Calendario', url);
+      const cleanUrl = getCleanHttpsUrl('cristian');
+      await Clipboard.setStringAsync(cleanUrl);
+      Alert.alert('Enlace del Calendario', cleanUrl);
     }
   };
 
@@ -352,17 +380,17 @@ export default function SettingsScreen() {
             />
 
             <Button
+              title="📥 Descargar e Importar en Calendario (1 toque)"
+              variant="outline"
+              icon="download-outline"
+              onPress={handleDownloadIcs}
+            />
+
+            <Button
               title="📋 Copiar Enlace de Suscripción"
               variant="outline"
               icon="copy-outline"
               onPress={handleCopyCalendarUrl}
-            />
-
-            <Button
-              title="📥 Descargar Archivo .ics"
-              variant="outline"
-              icon="download-outline"
-              onPress={handleDownloadIcs}
             />
 
             <Button
@@ -376,19 +404,16 @@ export default function SettingsScreen() {
           {/* Instrucciones sencillas para iPhone */}
           <View style={styles.instructionsBox}>
             <Text style={styles.instructionsTitle}>
-              📲 Cómo conectarlo en tu iPhone en 10 segundos:
+              📲 Cómo añadirlo a tu iPhone (2 opciones):
             </Text>
             <Text style={styles.instructionsStep}>
-              1. Pulsa arriba en <Text style={{ fontWeight: '700' }}>"Suscribir mi iPhone al Calendario"</Text>.
+              <Text style={{ fontWeight: '700' }}>Opción 1 (Automática por Suscripción):</Text> Pulsa en <Text style={{ fontWeight: '700' }}>"Suscribir mi iPhone al Calendario"</Text>. En la ventana de Apple, pulsa <Text style={{ fontWeight: '700' }}>"Suscribirse"</Text> y luego <Text style={{ fontWeight: '700' }}>"Añadir"</Text>.
             </Text>
             <Text style={styles.instructionsStep}>
-              2. Safari abrirá una ventana de Apple preguntando: <Text style={{ fontStyle: 'italic' }}>"¿Deseas suscribirte al calendario Clases Cristian?"</Text>.
-            </Text>
-            <Text style={styles.instructionsStep}>
-              3. Pulsa <Text style={{ fontWeight: '700' }}>"Suscribirse"</Text> y luego <Text style={{ fontWeight: '700' }}>"Añadir"</Text>.
+              <Text style={{ fontWeight: '700' }}>Opción 2 (Importación Directa 100% infalible):</Text> Pulsa en <Text style={{ fontWeight: '700' }}>"Descargar e Importar en Calendario"</Text>. Safari descargará el archivo y tu iPhone abrirá la ventana oficial para añadir todas tus clases al instante a tu app Calendario.
             </Text>
             <Text style={[styles.instructionsStep, { marginBottom: 0 }]}>
-              4. ¡Listo! Verás todas tus clases en la app Calendario de iOS y se sincronizará con tu iCloud.
+              <Text style={{ fontWeight: '700' }}>Si prefieres hacerlo manual:</Text> Copia el enlace y ve en tu iPhone a: <Text style={{ fontStyle: 'italic' }}>Ajustes ➔ Calendario ➔ Cuentas ➔ Añadir cuenta ➔ Otra ➔ Añadir calendario con suscripción</Text>, pega la URL y pulsa Guardar.
             </Text>
           </View>
         </Card>

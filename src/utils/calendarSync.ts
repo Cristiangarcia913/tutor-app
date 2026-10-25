@@ -2,16 +2,33 @@ import { Platform } from 'react-native';
 import type { ClassSession, Student, Subject } from '../types';
 
 /**
- * Formatea una fecha y hora local a formato iCalendar (YYYYMMDDTHHMMSS)
+ * Escapa caracteres especiales según el estándar RFC 5545 para iCalendar
  */
-const formatICalDate = (dateStr: string, timeStr: string): string => {
-  const [y, m, d] = dateStr.split('-');
-  const [hh, mm] = (timeStr || '17:00').split(':');
-  return `${y}${m}${d}T${(hh || '17').padStart(2, '0')}${(mm || '00').padStart(2, '0')}00`;
+const escapeICalText = (text: string): string => {
+  if (!text) return '';
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r\n|\r|\n/g, '\\n');
 };
 
 /**
- * Genera el archivo estándar iCalendar (.ics) RFC 5545 con todas las clases
+ * Formatea una fecha y hora local a formato iCalendar (YYYYMMDDTHHMMSS)
+ */
+const formatICalDate = (dateStr: string, timeStr: string): string => {
+  const [y, m, d] = (dateStr || '').split('-');
+  const [hh, mm] = (timeStr || '17:00').split(':');
+  const safeY = y || '2026';
+  const safeM = (m || '01').padStart(2, '0');
+  const safeD = (d || '01').padStart(2, '0');
+  const safeH = (hh || '17').padStart(2, '0');
+  const safeMin = (mm || '00').padStart(2, '0');
+  return `${safeY}${safeM}${safeD}T${safeH}${safeMin}00`;
+};
+
+/**
+ * Genera el archivo estándar iCalendar (.ics) RFC 5545 con soporte completo de zona horaria VTIMEZONE
  */
 export const generateICalendarData = (
   classes: ClassSession[],
@@ -27,66 +44,171 @@ export const generateICalendarData = (
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//TutorApp//ES',
+    'PRODID:-//Cristian//TutorApp Clases//ES',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'X-WR-CALNAME:Clases Cristian',
-    'X-WR-CALDESC:Calendario de Clases Particulares de Matemáticas',
+    'X-WR-CALDESC:Clases Particulares de Matemáticas',
     'X-WR-TIMEZONE:Europe/Madrid',
+    'BEGIN:VTIMEZONE',
+    'TZID:Europe/Madrid',
+    'X-LIC-LOCATION:Europe/Madrid',
+    'BEGIN:DAYLIGHT',
+    'TZOFFSETFROM:+0100',
+    'TZOFFSETTO:+0200',
+    'TZNAME:CEST',
+    'DTSTART:19700329T020000',
+    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
+    'END:DAYLIGHT',
+    'BEGIN:STANDARD',
+    'TZOFFSETFROM:+0200',
+    'TZOFFSETTO:+0100',
+    'TZNAME:CET',
+    'DTSTART:19701025T030000',
+    'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
+    'END:STANDARD',
+    'END:VTIMEZONE',
   ];
 
-  classes.forEach((cls) => {
-    if (cls.status === 'cancelled') return;
+  const activeClasses = classes.filter((cls) => cls.status !== 'cancelled');
 
-    const student = students[cls.studentId];
-    const studentName = student ? `${student.firstName} ${student.lastName}`.trim() : 'Alumno';
-    const startStr = formatICalDate(cls.date, cls.startTime);
-    const endStr = formatICalDate(cls.date, cls.endTime || '18:00');
-
-    let locationText = 'Presencial';
-    if (cls.location === 'online') {
-      locationText = 'Online por videollamada';
-    } else if (cls.location === 'domicilio') {
-      locationText = student?.address ? `A domicilio (${student.address})` : 'A domicilio';
-    } else if (student?.address) {
-      locationText = `Presencial (${student.address})`;
-    }
-
-    const paymentStatus = cls.isPaid ? 'Pagada ✓' : 'Pendiente de cobro ⏳';
-    const description = `Clase de Matemáticas con ${studentName}\\nEstado: ${paymentStatus}\\nDuración: ${cls.duration} min\\n${cls.notes ? 'Notas: ' + cls.notes : ''}`;
-
+  if (activeClasses.length === 0) {
+    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
     lines.push('BEGIN:VEVENT');
-    lines.push(`UID:tutorapp-${cls.id}@tutorapp.es`);
+    lines.push('UID:tutorapp-bienvenida@tutorapp.es');
     lines.push(`DTSTAMP:${now}`);
-    lines.push(`DTSTART:${startStr}`);
-    lines.push(`DTEND:${endStr}`);
-    lines.push(`SUMMARY:Matemáticas - ${studentName}`);
-    lines.push(`LOCATION:${locationText}`);
-    lines.push(`DESCRIPTION:${description}`);
+    lines.push(`DTSTART;TZID=Europe/Madrid:${today}T170000`);
+    lines.push(`DTEND;TZID=Europe/Madrid:${today}T180000`);
+    lines.push('SUMMARY:TutorApp - Calendario Conectado');
+    lines.push('DESCRIPTION:Tus clases de matemáticas se sincronizarán aquí automáticamente.');
     lines.push('STATUS:CONFIRMED');
     lines.push('END:VEVENT');
-  });
+  } else {
+    activeClasses.forEach((cls) => {
+      const student = students[cls.studentId];
+      const studentName = student ? `${student.firstName} ${student.lastName}`.trim() : 'Alumno';
+      const startStr = formatICalDate(cls.date, cls.startTime);
+      const endStr = formatICalDate(cls.date, cls.endTime || '18:00');
+
+      let locationText = 'Presencial';
+      if (cls.location === 'online') {
+        locationText = 'Online por videollamada';
+      } else if (cls.location === 'domicilio') {
+        locationText = student?.address ? `A domicilio (${student.address})` : 'A domicilio';
+      } else if (student?.address) {
+        locationText = `Presencial (${student.address})`;
+      }
+
+      const paymentStatus = cls.isPaid ? 'Pagada ✓' : 'Pendiente de cobro ⏳';
+      const description = `Clase de Matemáticas con ${studentName}\\nEstado: ${paymentStatus}\\nDuración: ${cls.duration} min${cls.notes ? '\\nNotas: ' + cls.notes : ''}`;
+
+      lines.push('BEGIN:VEVENT');
+      lines.push(`UID:tutorapp-${cls.id}-${cls.date}@tutorapp.es`);
+      lines.push(`DTSTAMP:${now}`);
+      lines.push(`DTSTART;TZID=Europe/Madrid:${startStr}`);
+      lines.push(`DTEND;TZID=Europe/Madrid:${endStr}`);
+      lines.push(`SUMMARY:${escapeICalText(`Matemáticas - ${studentName}`)}`);
+      lines.push(`LOCATION:${escapeICalText(locationText)}`);
+      lines.push(`DESCRIPTION:${escapeICalText(description)}`);
+      lines.push('STATUS:CONFIRMED');
+      lines.push('END:VEVENT');
+    });
+  }
 
   lines.push('END:VCALENDAR');
   return lines.join('\r\n');
 };
 
 /**
+ * Codifica de manera compacta las clases para incluirlas en la URL
+ */
+export const encodeClassesForUrl = (
+  classes: ClassSession[] = [],
+  students: Record<string, Student> = {}
+): string => {
+  const compact = classes
+    .filter((c) => c.status !== 'cancelled')
+    .slice(0, 100)
+    .map((c) => {
+      const student = students[c.studentId];
+      const studentName = student ? `${student.firstName} ${student.lastName}`.trim() : 'Alumno';
+      let loc = 'Presencial';
+      if (c.location === 'online') loc = 'Online';
+      else if (c.location === 'domicilio') loc = student?.address ? `Domicilio (${student.address})` : 'A domicilio';
+      else if (student?.address) loc = `Presencial (${student.address})`;
+
+      return {
+        id: c.id,
+        s: studentName,
+        d: c.date,
+        t: c.startTime || '17:00',
+        e: c.endTime || '18:00',
+        u: c.duration || 60,
+        p: c.isPaid ? 1 : 0,
+        l: loc,
+        n: c.notes || '',
+      };
+    });
+
+  if (compact.length === 0) return '';
+
+  try {
+    const jsonStr = JSON.stringify(compact);
+    if (typeof window !== 'undefined' && window.btoa) {
+      return encodeURIComponent(window.btoa(unescape(encodeURIComponent(jsonStr))));
+    }
+    return '';
+  } catch {
+    return '';
+  }
+};
+
+/**
  * Obtiene la URL de suscripción para Apple Calendar (webcal://)
  */
-export const getCalendarSubscriptionUrl = (feedKey: string = 'cristian'): string => {
+export const getCalendarSubscriptionUrl = (
+  classes: ClassSession[] = [],
+  students: Record<string, Student> = {},
+  feedKey: string = 'cristian'
+): string => {
   if (typeof window === 'undefined') return '';
   const host = window.location.host;
-  return `webcal://${host}/api/calendar.ics?key=${feedKey}`;
+  const d = encodeClassesForUrl(classes, students);
+  const query = d ? `?d=${d}` : `?key=${feedKey}`;
+  return `webcal://${host}/calendar.ics${query}`;
+};
+
+/**
+ * Obtiene la URL limpia de suscripción (sin parámetros largos)
+ */
+export const getCleanSubscriptionUrl = (feedKey: string = 'cristian'): string => {
+  if (typeof window === 'undefined') return '';
+  const host = window.location.host;
+  return `webcal://${host}/calendar.ics`;
 };
 
 /**
  * Obtiene la URL HTTPS estándar para el feed .ics
  */
-export const getCalendarHttpsUrl = (feedKey: string = 'cristian'): string => {
+export const getCalendarHttpsUrl = (
+  classes: ClassSession[] = [],
+  students: Record<string, Student> = {},
+  feedKey: string = 'cristian'
+): string => {
   if (typeof window === 'undefined') return '';
   const origin = window.location.origin;
-  return `${origin}/api/calendar.ics?key=${feedKey}`;
+  const d = encodeClassesForUrl(classes, students);
+  const query = d ? `?d=${d}` : `?key=${feedKey}`;
+  return `${origin}/calendar.ics${query}`;
+};
+
+/**
+ * Obtiene la URL HTTPS limpia para copiar y pegar en Ajustes de iPhone
+ */
+export const getCleanHttpsUrl = (feedKey: string = 'cristian'): string => {
+  if (typeof window === 'undefined') return '';
+  const origin = window.location.origin;
+  return `${origin}/calendar.ics`;
 };
 
 /**
@@ -148,6 +270,12 @@ export const downloadIcsFile = (
   link.setAttribute('download', 'clases_cristian.ics');
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    try {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch {
+      // Ignorar si ya fue removido
+    }
+  }, 100);
 };

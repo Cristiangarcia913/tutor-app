@@ -4,7 +4,15 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|_expo/|favicon\\.ico|.*\\..*).*)",
+      "source": "/calendar.ics",
+      "destination": "/api/calendar"
+    },
+    {
+      "source": "/api/calendar.ics",
+      "destination": "/api/calendar"
+    },
+    {
+      "source": "/((?!api/|calendar\\.ics|assets/|_expo/|favicon\\.ico|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]
