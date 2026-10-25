@@ -6,6 +6,7 @@ import {
   Modal,
   TouchableOpacity,
   TextInput,
+  ScrollView,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -96,6 +97,28 @@ export default function RescheduleClassModal({
               value={newStartTime}
               onChange={setNewStartTime}
             />
+
+            {/* Selector rápido de horas habituales */}
+            <View style={styles.quickHoursRow}>
+              <Text style={styles.quickMinutesLabel}>Hora rápida:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickHoursScroll}>
+                {['15:00', '15:15', '15:30', '16:00', '16:30', '17:00', '17:15', '17:30', '18:00', '18:15', '18:30', '19:00', '19:30', '20:00'].map((timePreset) => {
+                  const isSelected = newStartTime === timePreset;
+                  return (
+                    <TouchableOpacity
+                      key={timePreset}
+                      onPress={() => setNewStartTime(timePreset)}
+                      style={[styles.quickMinuteChip, isSelected && styles.quickMinuteChipSelected]}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.quickMinuteChipText, isSelected && styles.quickMinuteChipTextSelected]}>
+                        {timePreset}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
 
             {/* Selector rápido de minutos (:00, :15, :30, :45) */}
             <View style={styles.quickMinutesRow}>
@@ -250,6 +273,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.sm,
     marginTop: Spacing.xs,
+  },
+  quickHoursRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  quickHoursScroll: {
+    flexDirection: 'row',
+    gap: 6,
   },
   quickMinutesRow: {
     flexDirection: 'row',

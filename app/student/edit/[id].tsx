@@ -162,7 +162,7 @@ export default function EditStudentScreen() {
 
       await updateStudent(id, data);
 
-      if (autoGenerateMonth && scheduleSlots.length > 0) {
+      if (scheduleSlots.length > 0) {
         const now = new Date();
         await generateMonthClassesForStudent(id, now.getFullYear(), now.getMonth() + 1);
       }

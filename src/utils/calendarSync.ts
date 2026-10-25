@@ -13,6 +13,18 @@ const escapeICalText = (text: string): string => {
     .replace(/\r\n|\r|\n/g, '\\n');
 };
 
+export const computeEndTime = (startTime: string, durationMinutes: number = 60): string => {
+  try {
+    const [h, m] = (startTime || '17:00').split(':').map(Number);
+    const total = (isNaN(h) ? 17 : h) * 60 + (isNaN(m) ? 0 : m) + (durationMinutes || 60);
+    const endH = Math.floor(total / 60) % 24;
+    const endM = total % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+  } catch {
+    return '18:00';
+  }
+};
+
 /**
  * Formatea una fecha y hora local a formato iCalendar (YYYYMMDDTHHMMSS)
  */
@@ -77,8 +89,8 @@ export const generateICalendarData = (
     lines.push('BEGIN:VEVENT');
     lines.push('UID:tutorapp-bienvenida@tutorapp.es');
     lines.push(`DTSTAMP:${now}`);
-    lines.push(`DTSTART;TZID=Europe/Madrid:${today}T170000`);
-    lines.push(`DTEND;TZID=Europe/Madrid:${today}T180000`);
+    lines.push(`DTSTART:${today}T170000`);
+    lines.push(`DTEND:${today}T180000`);
     lines.push('SUMMARY:TutorApp - Calendario Conectado');
     lines.push('DESCRIPTION:Tus clases de matemáticas se sincronizarán aquí automáticamente.');
     lines.push('STATUS:CONFIRMED');
@@ -87,8 +99,11 @@ export const generateICalendarData = (
     activeClasses.forEach((cls) => {
       const student = students[cls.studentId];
       const studentName = student ? `${student.firstName} ${student.lastName}`.trim() : 'Alumno';
+      const effectiveEndTime = cls.endTime && cls.endTime > cls.startTime
+        ? cls.endTime
+        : computeEndTime(cls.startTime, cls.duration || 60);
       const startStr = formatICalDate(cls.date, cls.startTime);
-      const endStr = formatICalDate(cls.date, cls.endTime || '18:00');
+      const endStr = formatICalDate(cls.date, effectiveEndTime);
 
       let locationText = 'Presencial';
       if (cls.location === 'online') {
@@ -105,8 +120,8 @@ export const generateICalendarData = (
       lines.push('BEGIN:VEVENT');
       lines.push(`UID:tutorapp-${cls.id}-${cls.date}@tutorapp.es`);
       lines.push(`DTSTAMP:${now}`);
-      lines.push(`DTSTART;TZID=Europe/Madrid:${startStr}`);
-      lines.push(`DTEND;TZID=Europe/Madrid:${endStr}`);
+      lines.push(`DTSTART:${startStr}`);
+      lines.push(`DTEND:${endStr}`);
       lines.push(`SUMMARY:${escapeICalText(`Clase - ${studentName}`)}`);
       lines.push(`LOCATION:${escapeICalText(locationText)}`);
       lines.push(`DESCRIPTION:${escapeICalText(description)}`);
@@ -137,13 +152,17 @@ export const encodeClassesForUrl = (
       else if (c.location === 'domicilio') loc = student?.address ? `Domicilio (${student.address})` : 'A domicilio';
       else if (student?.address) loc = `Presencial (${student.address})`;
 
+      const startTime = c.startTime || '17:00';
+      const duration = c.duration || 60;
+      const endTime = c.endTime && c.endTime > startTime ? c.endTime : computeEndTime(startTime, duration);
+
       return {
         id: c.id,
         s: studentName,
         d: c.date,
-        t: c.startTime || '17:00',
-        e: c.endTime || '18:00',
-        u: c.duration || 60,
+        t: startTime,
+        e: endTime,
+        u: duration,
         p: c.isPaid ? 1 : 0,
         l: loc,
         n: c.notes || '',

@@ -256,7 +256,13 @@ export default function ClassDetailScreen() {
               <View>
                 <Text style={styles.gridLabel}>Horario</Text>
                 <Text style={styles.gridValue}>
-                  {session.startTime} - {session.endTime}
+                  {session.startTime} - {session.endTime && session.endTime > session.startTime ? session.endTime : (() => {
+                    const [h, m] = (session.startTime || '17:00').split(':').map(Number);
+                    const total = (isNaN(h) ? 17 : h) * 60 + (isNaN(m) ? 0 : m) + (session.duration || 60);
+                    const endH = Math.floor(total / 60) % 24;
+                    const endM = total % 60;
+                    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+                  })()}
                 </Text>
               </View>
             </View>

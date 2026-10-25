@@ -33,6 +33,18 @@ const generateId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 };
 
+export const computeEndTime = (startTime: string, durationMinutes: number = 60): string => {
+  try {
+    const [h, m] = (startTime || '17:00').split(':').map(Number);
+    const total = (isNaN(h) ? 17 : h) * 60 + (isNaN(m) ? 0 : m) + (durationMinutes || 60);
+    const endH = Math.floor(total / 60) % 24;
+    const endM = total % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+  } catch {
+    return '18:00';
+  }
+};
+
 // -----------------------------------------------------------------------------
 // Database instance (singleton)
 // -----------------------------------------------------------------------------
@@ -601,7 +613,12 @@ export const createClassSession = async (data: ClassSessionFormData): Promise<Cl
   const database = await getDb();
   const id = generateId();
   const now = new Date().toISOString();
-  const totalAmount = (data.duration / 60) * data.rate;
+  const duration = data.duration || 60;
+  const startTime = data.startTime || '17:00';
+  const endTime = data.endTime && data.endTime > startTime
+    ? data.endTime
+    : computeEndTime(startTime, duration);
+  const totalAmount = (duration / 60) * (data.rate || 0);
 
   await database.runAsync(
     `INSERT INTO class_sessions (id, studentId, subjectId, date, startTime, endTime, duration, rate, totalAmount, status, location, notes, homework, createdAt, updatedAt)
@@ -610,10 +627,10 @@ export const createClassSession = async (data: ClassSessionFormData): Promise<Cl
     data.studentId,
     data.subjectId,
     data.date,
-    data.startTime,
-    data.endTime,
-    data.duration,
-    data.rate,
+    startTime,
+    endTime,
+    duration,
+    data.rate || 0,
     totalAmount,
     data.status || 'scheduled',
     data.location || 'presencial',
@@ -706,6 +723,10 @@ export const updateClassSession = async (
   const newDuration = data.duration ?? current.duration;
   const newRate = data.rate ?? current.rate;
   const totalAmount = (newDuration / 60) * newRate;
+  const newStartTime = data.startTime ?? current.startTime;
+  const newEndTime = data.endTime && data.endTime > newStartTime
+    ? data.endTime
+    : computeEndTime(newStartTime, newDuration);
 
   const fields: string[] = [];
   const values: any[] = [];
@@ -714,7 +735,11 @@ export const updateClassSession = async (
   if (data.subjectId !== undefined) { fields.push('subjectId = ?'); values.push(data.subjectId); }
   if (data.date !== undefined) { fields.push('date = ?'); values.push(data.date); }
   if (data.startTime !== undefined) { fields.push('startTime = ?'); values.push(data.startTime); }
-  if (data.endTime !== undefined) { fields.push('endTime = ?'); values.push(data.endTime); }
+  if (data.endTime !== undefined) {
+    fields.push('endTime = ?'); values.push(data.endTime);
+  } else if (data.startTime !== undefined || data.duration !== undefined) {
+    fields.push('endTime = ?'); values.push(newEndTime);
+  }
   if (data.duration !== undefined) { fields.push('duration = ?'); values.push(data.duration); }
   if (data.rate !== undefined) { fields.push('rate = ?'); values.push(data.rate); }
   if (data.status !== undefined) { fields.push('status = ?'); values.push(data.status); }

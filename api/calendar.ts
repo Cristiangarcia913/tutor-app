@@ -32,6 +32,18 @@ const escapeICalText = (text: string): string => {
     .replace(/\r\n|\r|\n/g, '\\n');
 };
 
+const computeEndTime = (startTime: string, durationMinutes: number = 60): string => {
+  try {
+    const [h, m] = (startTime || '17:00').split(':').map(Number);
+    const total = (isNaN(h) ? 17 : h) * 60 + (isNaN(m) ? 0 : m) + (durationMinutes || 60);
+    const endH = Math.floor(total / 60) % 24;
+    const endM = total % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+  } catch {
+    return '18:00';
+  }
+};
+
 const formatICalDate = (dateStr: string, timeStr: string): string => {
   const [y, m, d] = (dateStr || '').split('-');
   const [hh, mm] = (timeStr || '17:00').split(':');
@@ -95,8 +107,8 @@ const buildICalFromItems = (
     lines.push('BEGIN:VEVENT');
     lines.push('UID:tutorapp-bienvenida@tutorapp.es');
     lines.push(`DTSTAMP:${now}`);
-    lines.push(`DTSTART;TZID=Europe/Madrid:${today}T170000`);
-    lines.push(`DTEND;TZID=Europe/Madrid:${today}T180000`);
+    lines.push(`DTSTART:${today}T170000`);
+    lines.push(`DTEND:${today}T180000`);
     lines.push('SUMMARY:TutorApp - Calendario Conectado');
     lines.push('DESCRIPTION:Tus clases de matemáticas se sincronizarán aquí automáticamente.');
     lines.push('STATUS:CONFIRMED');
@@ -104,16 +116,19 @@ const buildICalFromItems = (
   } else {
     items.forEach((item, idx) => {
       const studentName = item.studentName || 'Alumno';
+      const effectiveEndTime = item.endTime && item.endTime > item.startTime
+        ? item.endTime
+        : computeEndTime(item.startTime, item.duration || 60);
       const startStr = formatICalDate(item.date, item.startTime);
-      const endStr = formatICalDate(item.date, item.endTime || '18:00');
+      const endStr = formatICalDate(item.date, effectiveEndTime);
       const paymentStatus = item.isPaid ? 'Pagada ✓' : 'Pendiente de cobro ⏳';
       const desc = `Clase con ${studentName}\\nEstado: ${paymentStatus}\\nDuración: ${item.duration || 60} min${item.notes ? '\\nNotas: ' + item.notes : ''}`;
 
       lines.push('BEGIN:VEVENT');
       lines.push(`UID:tutorapp-${item.id || idx}-${item.date}@tutorapp.es`);
       lines.push(`DTSTAMP:${now}`);
-      lines.push(`DTSTART;TZID=Europe/Madrid:${startStr}`);
-      lines.push(`DTEND;TZID=Europe/Madrid:${endStr}`);
+      lines.push(`DTSTART:${startStr}`);
+      lines.push(`DTEND:${endStr}`);
       lines.push(`SUMMARY:${escapeICalText(`Clase - ${studentName}`)}`);
       lines.push(`LOCATION:${escapeICalText(item.location || 'Presencial')}`);
       lines.push(`DESCRIPTION:${escapeICalText(desc)}`);

@@ -39,6 +39,20 @@ export default function ClassCard({
   const statusColor = getStatusColor(session.status);
   const locationLabel = getLocationLabel(session.location);
 
+  const displayEndTime = session.endTime && session.endTime > session.startTime
+    ? session.endTime
+    : (() => {
+        try {
+          const [h, m] = (session.startTime || '17:00').split(':').map(Number);
+          const total = (isNaN(h) ? 17 : h) * 60 + (isNaN(m) ? 0 : m) + (session.duration || 60);
+          const endH = Math.floor(total / 60) % 24;
+          const endM = total % 60;
+          return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+        } catch {
+          return '18:00';
+        }
+      })();
+
   const getLocationIcon = (loc: string): keyof typeof Ionicons.glyphMap => {
     switch (loc) {
       case 'online':
@@ -133,7 +147,7 @@ export default function ClassCard({
               color={isPaid ? '#059669' : Colors.textSecondary}
             />
             <Text style={[styles.metaText, isPaid && styles.metaTextPaid]}>
-              {session.startTime} - {session.endTime} ({formatDuration(session.duration)})
+              {session.startTime} - {displayEndTime} ({formatDuration(session.duration)})
             </Text>
           </View>
 

@@ -31,6 +31,18 @@ export const generateAccessCode = (name: string): string => {
   return `${prefix}-${num}`;
 };
 
+export const computeEndTime = (startTime: string, durationMinutes: number = 60): string => {
+  try {
+    const [h, m] = (startTime || '17:00').split(':').map(Number);
+    const total = (isNaN(h) ? 17 : h) * 60 + (isNaN(m) ? 0 : m) + (durationMinutes || 60);
+    const endH = Math.floor(total / 60) % 24;
+    const endM = total % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+  } catch {
+    return '18:00';
+  }
+};
+
 // Default initial seed data for web preview
 const INITIAL_SUBJECTS: Subject[] = [
   {
@@ -414,8 +426,29 @@ export const webGetAllClasses = async (filter?: ClassFilter): Promise<ClassSessi
   // Limpieza automática de clases huérfanas si el alumno fue eliminado
   const students = storage.get<Student[]>('tutorapp_students', INITIAL_STUDENTS);
   const studentIds = new Set(students.map((s) => s.id));
+  let modified = false;
+
   if (list.some((c) => !studentIds.has(c.studentId))) {
     list = list.filter((c) => studentIds.has(c.studentId));
+    modified = true;
+  }
+
+  // Saneamiento automático de horas y montos
+  list.forEach((c) => {
+    const duration = c.duration || 60;
+    const computedEnd = computeEndTime(c.startTime || '17:00', duration);
+    if (!c.endTime || c.endTime <= c.startTime) {
+      c.endTime = computedEnd;
+      modified = true;
+    }
+    const expectedTotal = (duration / 60) * (c.rate || 0);
+    if (c.totalAmount === undefined || (c.rate && c.totalAmount === 0)) {
+      c.totalAmount = expectedTotal;
+      modified = true;
+    }
+  });
+
+  if (modified) {
     storage.set('tutorapp_classes', list);
   }
 
@@ -433,10 +466,17 @@ export const webGetClassById = async (id: string): Promise<ClassSession | null> 
 export const webCreateClass = async (data: ClassSessionFormData): Promise<ClassSession> => {
   const list = await webGetAllClasses();
   const duration = data.duration || 60;
+  const startTime = data.startTime || '17:00';
+  const endTime = data.endTime && data.endTime > startTime
+    ? data.endTime
+    : computeEndTime(startTime, duration);
   const totalAmount = (duration / 60) * (data.rate || 0);
 
   const created: ClassSession = {
     ...data,
+    startTime,
+    endTime,
+    duration,
     id: generateId(),
     totalAmount,
     createdAt: new Date().toISOString(),
@@ -454,9 +494,16 @@ export const webCreateClassesBatch = async (
   const now = new Date().toISOString();
   const createdList: ClassSession[] = classesData.map((data) => {
     const duration = data.duration || 60;
+    const startTime = data.startTime || '17:00';
+    const endTime = data.endTime && data.endTime > startTime
+      ? data.endTime
+      : computeEndTime(startTime, duration);
     const totalAmount = (duration / 60) * (data.rate || 0);
     return {
       ...data,
+      startTime,
+      endTime,
+      duration,
       id: generateId(),
       totalAmount,
       createdAt: now,
@@ -481,9 +528,19 @@ export const webUpdateClass = async (
   const updatedDuration = data.duration !== undefined ? data.duration : current.duration;
   const updatedTotal = (updatedDuration / 60) * updatedRate;
 
+  const updatedStartTime = data.startTime !== undefined ? data.startTime : current.startTime;
+  let updatedEndTime = data.endTime !== undefined ? data.endTime : current.endTime;
+  if (!updatedEndTime || data.startTime !== undefined || data.duration !== undefined) {
+    if (!data.endTime || data.endTime <= updatedStartTime) {
+      updatedEndTime = computeEndTime(updatedStartTime, updatedDuration);
+    }
+  }
+
   list[idx] = {
     ...current,
     ...data,
+    startTime: updatedStartTime,
+    endTime: updatedEndTime,
     rate: updatedRate,
     duration: updatedDuration,
     totalAmount: updatedTotal,
@@ -514,11 +571,16 @@ export const webRescheduleClass = async (
   const current = await webGetClassById(id);
   if (!current) return null;
 
+  const duration = newDuration ?? current.duration ?? 60;
+  const safeEndTime = newEndTime && newEndTime > newStartTime
+    ? newEndTime
+    : computeEndTime(newStartTime, duration);
+
   return webUpdateClass(id, {
     date: newDate,
     startTime: newStartTime,
-    endTime: newEndTime,
-    duration: newDuration ?? current.duration,
+    endTime: safeEndTime,
+    duration,
     status: 'scheduled',
     rescheduledFromDate: current.date,
     rescheduledFromTime: current.startTime,
@@ -629,7 +691,7 @@ export const webGenerateMonthClassesForStudent = async (
     return [];
   }
 
-  const existingClasses = await webGetAllClasses({ studentId });
+  let allExisting = await webGetAllClasses();
   const subjects = await webGetAllSubjects();
   const subjectId = student.scheduleSubjectId || (subjects.length > 0 ? subjects[0].id : 'sub_matematicas');
 
@@ -638,6 +700,8 @@ export const webGenerateMonthClassesForStudent = async (
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const newClasses: ClassSessionFormData[] = [];
+  const modifiedExisting: ClassSession[] = [];
+  const idsToDelete = new Set<string>();
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -646,42 +710,72 @@ export const webGenerateMonthClassesForStudent = async (
 
     const daySlots = slots.filter((s) => s.day === dayOfWeek);
 
-    for (const slot of daySlots) {
-      const startTime = slot.time || '17:00';
-      const duration = slot.duration || defaultDuration;
-
-      const [h, m] = startTime.split(':').map(Number);
-      const totalMinutes = (isNaN(h) ? 17 : h) * 60 + (isNaN(m) ? 0 : m) + duration;
-      const endH = Math.floor(totalMinutes / 60) % 24;
-      const endM = totalMinutes % 60;
-      const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-
-      const alreadyExists = existingClasses.some(
-        (c) => c.date === dateStr && c.startTime === startTime && c.status !== 'cancelled'
+    if (daySlots.length > 0) {
+      const classesOnDay = allExisting.filter(
+        (c) => c.studentId === student.id && c.date === dateStr && c.status !== 'cancelled'
       );
 
-      if (!alreadyExists) {
-        newClasses.push({
-          studentId: student.id,
-          subjectId,
-          date: dateStr,
-          startTime,
-          endTime,
-          duration,
-          rate,
-          status: 'scheduled',
-          location: 'presencial',
-          notes: 'Clase programada según horario habitual',
-          isPaid: false,
-        });
+      for (let sIdx = 0; sIdx < daySlots.length; sIdx++) {
+        const slot = daySlots[sIdx];
+        const startTime = slot.time || '17:00';
+        const duration = slot.duration || defaultDuration;
+        const endTime = computeEndTime(startTime, duration);
+        const totalAmount = (duration / 60) * rate;
+
+        if (sIdx < classesOnDay.length) {
+          const existingCls = classesOnDay[sIdx];
+          if (!existingCls.isPaid) {
+            existingCls.startTime = startTime;
+            existingCls.endTime = endTime;
+            existingCls.duration = duration;
+            existingCls.rate = rate;
+            existingCls.totalAmount = totalAmount;
+            existingCls.updatedAt = new Date().toISOString();
+            modifiedExisting.push(existingCls);
+          }
+        } else {
+          newClasses.push({
+            studentId: student.id,
+            subjectId,
+            date: dateStr,
+            startTime,
+            endTime,
+            duration,
+            rate,
+            status: 'scheduled',
+            location: 'presencial',
+            notes: 'Clase programada según horario habitual',
+            isPaid: false,
+          });
+        }
+      }
+
+      // Eliminar duplicados no pagados en el mismo día
+      if (classesOnDay.length > daySlots.length) {
+        for (let extra = daySlots.length; extra < classesOnDay.length; extra++) {
+          const extraCls = classesOnDay[extra];
+          if (!extraCls.isPaid && extraCls.status === 'scheduled') {
+            idsToDelete.add(extraCls.id);
+          }
+        }
       }
     }
   }
 
-  if (newClasses.length > 0) {
-    return webCreateClassesBatch(newClasses);
+  if (idsToDelete.size > 0) {
+    allExisting = allExisting.filter((c) => !idsToDelete.has(c.id));
   }
-  return [];
+
+  if (modifiedExisting.length > 0 || idsToDelete.size > 0) {
+    storage.set('tutorapp_classes', allExisting);
+  }
+
+  if (newClasses.length > 0) {
+    const created = await webCreateClassesBatch(newClasses);
+    return [...modifiedExisting, ...created];
+  }
+
+  return modifiedExisting;
 };
 
 export const webGetAllPayments = async (filter?: PaymentFilter): Promise<Payment[]> => {

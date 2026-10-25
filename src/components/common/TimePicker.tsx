@@ -46,6 +46,11 @@ export default function TimePicker({
   const [tempHour, setTempHour] = useState(selectedHour >= 0 ? selectedHour : 9);
   const [tempMinute, setTempMinute] = useState(selectedMinute >= 0 ? selectedMinute : 0);
 
+  React.useEffect(() => {
+    if (selectedHour >= 0) setTempHour(selectedHour);
+    if (selectedMinute >= 0) setTempMinute(selectedMinute);
+  }, [value, selectedHour, selectedMinute]);
+
   function handleOpen() {
     if (selectedHour >= 0) setTempHour(selectedHour);
     if (selectedMinute >= 0) setTempMinute(selectedMinute);

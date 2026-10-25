@@ -24,6 +24,8 @@ import type {
 
 import * as web from './webStorage';
 
+export const computeEndTime = web.computeEndTime;
+
 export const initializeDatabase = async (): Promise<void> => {
   return web.webInit();
 };
