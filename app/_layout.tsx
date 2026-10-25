@@ -5,7 +5,6 @@ import { DatabaseProvider } from '../src/hooks/useDatabase';
 import { AuthRoleProvider } from '../src/hooks/useAuthRole';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import SecurityLockModal from '../src/components/common/SecurityLockModal';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -100,7 +99,6 @@ export default function RootLayout() {
           <DatabaseProvider>
             <AuthRoleProvider>
               <StatusBar style="dark" />
-              <SecurityLockModal />
               {runtimeError && (
                 <View style={styles.runtimeErrorBanner}>
                   <Text style={styles.runtimeErrorText}>{runtimeError}</Text>

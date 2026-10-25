@@ -307,17 +307,22 @@ const storage = new WebStorageManager();
 // Web API implementations
 export const webInit = async (): Promise<void> => {
   if (!storage.getItem('tutorapp_initialized')) {
-    storage.set('tutorapp_students', INITIAL_STUDENTS);
+    storage.set('tutorapp_students', []);
     storage.set('tutorapp_subjects', INITIAL_SUBJECTS);
-    storage.set('tutorapp_classes', INITIAL_CLASSES);
-    storage.set('tutorapp_payments', INITIAL_PAYMENTS);
+    storage.set('tutorapp_classes', []);
+    storage.set('tutorapp_payments', []);
     storage.set('tutorapp_settings', INITIAL_SETTINGS);
     storage.setItem('tutorapp_initialized', 'true');
   }
 };
 
 export const webGetAllStudents = async (activeOnly: boolean = false): Promise<Student[]> => {
-  const list = storage.get<Student[]>('tutorapp_students', INITIAL_STUDENTS);
+  let list = storage.get<Student[]>('tutorapp_students', []);
+  // Limpieza de cualquier alumno demo residual (Alejandro Montes, Lucía Gómez) si existiera
+  if (list.some((s) => s.id === 'stu_alejandro' || s.id === 'stu_lucia' || s.id === 'stu_marcos')) {
+    list = list.filter((s) => s.id !== 'stu_alejandro' && s.id !== 'stu_lucia' && s.id !== 'stu_marcos');
+    storage.set('tutorapp_students', list);
+  }
   if (activeOnly) return list.filter((s) => s.active);
   return list;
 };
@@ -421,12 +426,18 @@ export const webDeleteSubject = async (id: string): Promise<void> => {
 };
 
 export const webGetAllClasses = async (filter?: ClassFilter): Promise<ClassSession[]> => {
-  let list = storage.get<ClassSession[]>('tutorapp_classes', INITIAL_CLASSES);
+  let list = storage.get<ClassSession[]>('tutorapp_classes', []);
+  let modified = false;
+
+  // Limpieza automática de clases demo residuales
+  if (list.some((c) => c.studentId === 'stu_alejandro' || c.studentId === 'stu_lucia' || c.studentId === 'stu_marcos')) {
+    list = list.filter((c) => c.studentId !== 'stu_alejandro' && c.studentId !== 'stu_lucia' && c.studentId !== 'stu_marcos');
+    modified = true;
+  }
 
   // Limpieza automática de clases huérfanas si el alumno fue eliminado
-  const students = storage.get<Student[]>('tutorapp_students', INITIAL_STUDENTS);
+  const students = await webGetAllStudents();
   const studentIds = new Set(students.map((s) => s.id));
-  let modified = false;
 
   if (list.some((c) => !studentIds.has(c.studentId))) {
     list = list.filter((c) => studentIds.has(c.studentId));
@@ -779,10 +790,16 @@ export const webGenerateMonthClassesForStudent = async (
 };
 
 export const webGetAllPayments = async (filter?: PaymentFilter): Promise<Payment[]> => {
-  let list = storage.get<Payment[]>('tutorapp_payments', INITIAL_PAYMENTS);
+  let list = storage.get<Payment[]>('tutorapp_payments', []);
+
+  // Limpieza automática de cobros de alumnos demo
+  if (list.some((p) => p.studentId === 'stu_alejandro' || p.studentId === 'stu_lucia' || p.studentId === 'stu_marcos')) {
+    list = list.filter((p) => p.studentId !== 'stu_alejandro' && p.studentId !== 'stu_lucia' && p.studentId !== 'stu_marcos');
+    storage.set('tutorapp_payments', list);
+  }
 
   // Limpieza automática de cobros huérfanos si el alumno fue eliminado
-  const students = storage.get<Student[]>('tutorapp_students', INITIAL_STUDENTS);
+  const students = await webGetAllStudents();
   const studentIds = new Set(students.map((s) => s.id));
   if (list.some((p) => !studentIds.has(p.studentId))) {
     list = list.filter((p) => studentIds.has(p.studentId));

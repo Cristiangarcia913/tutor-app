@@ -204,14 +204,26 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
       // Sincronizar en la nube global (ntfy.sh) para que todas las instancias serverless tengan el calendario actualizado
       try {
-        await fetch(`https://ntfy.sh/tutorapp_cal_${key}`, {
-          method: 'POST',
-          body: icsData,
-          headers: {
-            'Title': 'TutorApp Calendar Sync',
-            'Tags': 'calendar',
-          },
-        });
+        await Promise.allSettled([
+          fetch(`https://ntfy.sh/tutorapp_cal_${key}_v2`, {
+            method: 'POST',
+            body: icsData,
+            headers: {
+              'Title': 'TutorApp Calendar Sync',
+              'Tags': 'calendar',
+              'Filename': 'calendar.ics',
+            },
+          }),
+          fetch(`https://ntfy.sh/tutorapp_cal_${key}`, {
+            method: 'POST',
+            body: icsData,
+            headers: {
+              'Title': 'TutorApp Calendar Sync',
+              'Tags': 'calendar',
+              'Filename': 'calendar.ics',
+            },
+          }),
+        ]);
       } catch (cloudErr) {
         // Fallback silencioso si falla la conexión externa
       }
@@ -242,33 +254,61 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     // 2. Si no está en memoria ni /tmp, consultar la nube global (ntfy.sh)
     if (!icsContent) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2500);
-        const cloudRes = await fetch(`https://ntfy.sh/tutorapp_cal_${key}/json?poll=1`, {
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
+      const topics = [`tutorapp_cal_${key}_v2`, `tutorapp_cal_${key}`];
+      for (const topic of topics) {
+        if (icsContent) break;
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3500);
+          const cloudRes = await fetch(`https://ntfy.sh/${topic}/json?poll=1`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
 
-        if (cloudRes.ok) {
-          const rawText = await cloudRes.text();
-          const lines = rawText.trim().split('\n');
-          for (let i = lines.length - 1; i >= 0; i--) {
-            try {
-              const msg = JSON.parse(lines[i]);
-              if (msg.message && msg.message.includes('BEGIN:VCALENDAR')) {
-                icsContent = msg.message;
-                memoryCache[key] = icsContent;
-                try {
-                  fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
-                } catch {}
-                break;
-              }
-            } catch {}
+          if (cloudRes.ok) {
+            const rawText = await cloudRes.text();
+            const lines = rawText.trim().split('\n');
+            for (let i = lines.length - 1; i >= 0; i--) {
+              try {
+                const msg = JSON.parse(lines[i]);
+
+                // A) Si ntfy lo almacenó como archivo adjunto (cuando el ICS supera los 4KB)
+                if (msg.attachment?.url) {
+                  try {
+                    const attRes = await fetch(msg.attachment.url);
+                    if (attRes.ok) {
+                      const attText = await attRes.text();
+                      if (attText.includes('BEGIN:VCALENDAR')) {
+                        icsContent = attText;
+                        memoryCache[key] = icsContent;
+                        try {
+                          fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
+                        } catch {}
+                        break;
+                      }
+                    }
+                  } catch (attErr) {}
+                }
+
+                // B) Si vino directamente en el cuerpo del mensaje
+                if (msg.message && msg.message.includes('BEGIN:VCALENDAR')) {
+                  // Descartar mensajes antiguos de prueba que contengan alumnos demo
+                  if (msg.message.includes('Alejandro Martínez') || msg.message.includes('Lucía Gómez')) {
+                    continue;
+                  }
+                  icsContent = msg.message;
+                  memoryCache[key] = icsContent;
+                  try {
+                    fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
+                  } catch {}
+                  break;
+                }
+              } catch {}
+            }
           }
+        } catch (cloudGetErr) {
+          // Continuar al siguiente topic o fallback
         }
-      } catch (cloudGetErr) {
-        // Fallback
       }
     }
 

@@ -32,13 +32,6 @@ import {
 } from '../src/constants/theme';
 import { sendInstantReminderNotification } from '../src/utils/notifications';
 import {
-  isSecurityEnabled,
-  isFaceIdEnabled,
-  isFaceIdAvailable,
-  setupSecurity,
-  disableSecurity,
-} from '../src/utils/security';
-import {
   getCalendarSubscriptionUrl,
   getCleanSubscriptionUrl,
   getCalendarHttpsUrl,
@@ -61,15 +54,7 @@ export default function SettingsScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [defaultRate, setDefaultRate] = useState('20');
-
-  // Security state
-  const [securityActive, setSecurityActive] = useState(false);
-  const [faceIdActive, setFaceIdActive] = useState(false);
-  const [showSecurityModal, setShowSecurityModal] = useState(false);
-  const [newPin, setNewPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [enableFaceIdChoice, setEnableFaceIdChoice] = useState(true);
-  const [settingUpSecurity, setSettingUpSecurity] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
   // Calendar state
   const [syncingCalendar, setSyncingCalendar] = useState(false);
@@ -88,10 +73,6 @@ export default function SettingsScreen() {
         setPhone(s.phone || '');
         setDefaultRate(s.defaultRate ? s.defaultRate.toString() : '20');
       }
-
-      // Cargar estado de seguridad
-      setSecurityActive(isSecurityEnabled());
-      setFaceIdActive(isFaceIdEnabled());
     } catch (e) {
       console.error('Error loading settings:', e);
     } finally {
@@ -105,6 +86,7 @@ export default function SettingsScreen() {
 
   const handleSave = async () => {
     setSaving(true);
+    setFeedbackMsg(null);
     try {
       await db.updateSettings({
         teacherName: teacherName.trim(),
@@ -113,69 +95,17 @@ export default function SettingsScreen() {
         phone: phone.trim(),
         defaultRate: parseFloat(defaultRate) || 0,
       });
-      Alert.alert('Guardado', 'Los ajustes se han actualizado correctamente.');
+      setFeedbackMsg('✓ Ajustes guardados correctamente.');
+      setTimeout(() => setFeedbackMsg(null), 4000);
+      try {
+        Alert.alert('Guardado', 'Los ajustes se han actualizado correctamente.');
+      } catch {}
     } catch (e) {
       console.error('Error saving settings:', e);
-      Alert.alert('Error', 'No se pudieron guardar los ajustes.');
+      setFeedbackMsg('Error al guardar los ajustes.');
     } finally {
       setSaving(false);
     }
-  };
-
-  // Acciones de Seguridad
-  const handleSaveSecurity = async () => {
-    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
-      Alert.alert('PIN inválido', 'El PIN debe ser exactamente de 4 dígitos numéricos.');
-      return;
-    }
-    if (newPin !== confirmPin) {
-      Alert.alert('Error', 'Los dos PIN introducidos no coinciden.');
-      return;
-    }
-
-    setSettingUpSecurity(true);
-    try {
-      const ok = await setupSecurity(newPin, enableFaceIdChoice);
-      if (ok) {
-        setSecurityActive(true);
-        setFaceIdActive(enableFaceIdChoice && isFaceIdEnabled());
-        setShowSecurityModal(false);
-        setNewPin('');
-        setConfirmPin('');
-        Alert.alert(
-          '¡Seguridad Activada!',
-          enableFaceIdChoice
-            ? 'Protección con Face ID y PIN de 4 dígitos configurada con éxito.'
-            : 'PIN de 4 dígitos configurado correctamente.'
-        );
-      } else {
-        Alert.alert('Error', 'No se pudo guardar la configuración de seguridad.');
-      }
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Error al configurar seguridad.');
-    } finally {
-      setSettingUpSecurity(false);
-    }
-  };
-
-  const handleDisableSecurity = () => {
-    Alert.alert(
-      'Desactivar Seguridad',
-      '¿Seguro que deseas desactivar el PIN y Face ID? La app se abrirá directamente sin solicitar autenticación.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Desactivar',
-          style: 'destructive',
-          onPress: () => {
-            disableSecurity();
-            setSecurityActive(false);
-            setFaceIdActive(false);
-            Alert.alert('Seguridad desactivada', 'Se ha eliminado la protección.');
-          },
-        },
-      ]
-    );
   };
 
   // Acciones de Calendario iPhone
@@ -323,6 +253,12 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
+        {feedbackMsg && (
+          <View style={styles.feedbackBanner}>
+            <Ionicons name="checkmark-circle" size={18} color="#059669" />
+            <Text style={styles.feedbackText}>{feedbackMsg}</Text>
+          </View>
+        )}
         {/* Calendario de iPhone (iCloud) - Opción B Sincronización Automática */}
         <Card style={styles.card}>
           <View style={styles.sectionHeaderRow}>
@@ -402,66 +338,6 @@ export default function SettingsScreen() {
           </View>
         </Card>
 
-        {/* Seguridad & Face ID */}
-        <Card style={styles.card}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.iconCirclePurple}>
-              <Ionicons name="scan-outline" size={22} color="#7C3AED" />
-            </View>
-            <View style={{ flex: 1, marginLeft: Spacing.sm }}>
-              <Text style={styles.sectionTitle}>Seguridad & Face ID</Text>
-              {securityActive ? (
-                <View style={styles.badgeSuccess}>
-                  <Ionicons name="shield-checkmark" size={13} color="#166534" />
-                  <Text style={styles.badgeSuccessText}>
-                    {faceIdActive ? 'Face ID + PIN Activo' : 'PIN de 4 dígitos Activo'}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.badgeWarning}>
-                  <Ionicons name="lock-open-outline" size={13} color="#B45309" />
-                  <Text style={styles.badgeWarningText}>Desactivada (Acceso libre)</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          <Text style={[styles.cardSubtitle, { marginTop: Spacing.sm }]}>
-            Protege los datos de tus alumnos, ingresos y clases frente a accesos no autorizados mediante reconocimiento facial (Face ID) o un PIN de 4 dígitos.
-          </Text>
-
-          {securityActive ? (
-            <View style={styles.buttonCol}>
-              <Button
-                title="Cambiar PIN o Ajustes de Face ID"
-                variant="outline"
-                icon="key-outline"
-                onPress={() => {
-                  setNewPin('');
-                  setConfirmPin('');
-                  setShowSecurityModal(true);
-                }}
-              />
-              <Button
-                title="Desactivar Protección"
-                variant="danger"
-                icon="lock-open-outline"
-                onPress={handleDisableSecurity}
-              />
-            </View>
-          ) : (
-            <Button
-              title="🔒 Activar Face ID y PIN"
-              icon="scan-outline"
-              onPress={() => {
-                setNewPin('');
-                setConfirmPin('');
-                setShowSecurityModal(true);
-              }}
-            />
-          )}
-        </Card>
-
         {/* Profile Card */}
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Perfil del Profesor</Text>
@@ -509,8 +385,15 @@ export default function SettingsScreen() {
             placeholder="20"
           />
 
+          <Button
+            title={saving ? "Guardando cambios..." : "💾 Guardar Todos los Ajustes"}
+            onPress={handleSave}
+            disabled={saving}
+            style={{ marginTop: Spacing.md }}
+          />
+
           <TouchableOpacity
-            style={styles.manageRow}
+            style={[styles.manageRow, { marginTop: Spacing.md }]}
             onPress={() => router.push('/subject/manage')}
           >
             <View style={styles.manageIconCol}>
@@ -538,7 +421,7 @@ export default function SettingsScreen() {
             onPress={async () => {
               const ok = await sendInstantReminderNotification(
                 '🔔 Recordatorio de Clase: Matemáticas',
-                'Hoy a las 17:00 con Alejandro.\nLugar: 📍 Presencial (en el aula habitual).'
+                'Próxima clase programada.\nLugar: 📍 Presencial (en el aula habitual).'
               );
               if (ok) {
                 Alert.alert(
@@ -586,85 +469,6 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </ScrollView>
-
-      {/* Modal de Configuración de Seguridad */}
-      <Modal
-        visible={showSecurityModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowSecurityModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderTitleRow}>
-                <Ionicons name="shield-checkmark" size={22} color={Colors.primary} />
-                <Text style={styles.modalTitle}>Configurar Seguridad</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowSecurityModal(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={22} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalDescription}>
-              Introduce un código PIN de 4 dígitos. Si tienes Face ID en tu iPhone, podrás desbloquear la app al instante con tu cara.
-            </Text>
-
-            <Input
-              label="Nuevo PIN (4 dígitos)"
-              value={newPin}
-              onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
-              keyboardType="number-pad"
-              maxLength={4}
-              secureTextEntry
-              placeholder="••••"
-            />
-
-            <Input
-              label="Confirmar PIN"
-              value={confirmPin}
-              onChangeText={(t) => setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
-              keyboardType="number-pad"
-              maxLength={4}
-              secureTextEntry
-              placeholder="••••"
-            />
-
-            <View style={styles.switchRow}>
-              <View style={{ flex: 1, marginRight: Spacing.sm }}>
-                <Text style={styles.switchLabel}>Activar Face ID de Apple</Text>
-                <Text style={styles.switchSublabel}>
-                  Escaneará tu cara automáticamente al abrir la app
-                </Text>
-              </View>
-              <Switch
-                value={enableFaceIdChoice}
-                onValueChange={setEnableFaceIdChoice}
-                trackColor={{ false: '#CBD5E1', true: '#818CF8' }}
-                thumbColor={enableFaceIdChoice ? Colors.primary : '#F1F5F9'}
-              />
-            </View>
-
-            <View style={styles.modalActions}>
-              <Button
-                title="Cancelar"
-                variant="outline"
-                onPress={() => setShowSecurityModal(false)}
-                style={{ flex: 1 }}
-              />
-              <Button
-                title={settingUpSecurity ? 'Guardando...' : 'Activar'}
-                onPress={handleSaveSecurity}
-                disabled={settingUpSecurity || newPin.length !== 4 || confirmPin.length !== 4}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* Confirmation Dialogs */}
       <ConfirmDialog
@@ -929,6 +733,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  feedbackBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+    gap: 8,
+  },
+  feedbackText: {
+    fontSize: FontSizes.sm,
+    color: '#065F46',
+    fontWeight: '600',
+    flex: 1,
   },
   modalActions: {
     flexDirection: 'row',

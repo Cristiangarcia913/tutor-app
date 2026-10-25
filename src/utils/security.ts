@@ -27,24 +27,14 @@ export const isFaceIdAvailable = async (): Promise<boolean> => {
  * Comprueba si la seguridad está habilitada
  */
 export const isSecurityEnabled = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  try {
-    return localStorage.getItem(STORAGE_KEYS.ENABLED) === 'true';
-  } catch {
-    return false;
-  }
+  return false;
 };
 
 /**
  * Comprueba si Face ID está activo
  */
 export const isFaceIdEnabled = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  try {
-    return localStorage.getItem(STORAGE_KEYS.USE_FACEID) === 'true';
-  } catch {
-    return false;
-  }
+  return false;
 };
 
 /**
@@ -179,7 +169,17 @@ export const disableSecurity = (): void => {
     localStorage.removeItem(STORAGE_KEYS.ENABLED);
     localStorage.removeItem(STORAGE_KEYS.PIN);
     localStorage.removeItem(STORAGE_KEYS.USE_FACEID);
+    localStorage.removeItem('tutorapp_security_pin');
+    localStorage.removeItem('tutorapp_security_enabled');
+    localStorage.removeItem('tutorapp_use_faceid');
   } catch (e) {
     console.error('Error disabling security:', e);
   }
 };
+
+// Limpieza automática al cargar para asegurar que la app abra libremente
+if (typeof window !== 'undefined') {
+  try {
+    disableSecurity();
+  } catch {}
+}
