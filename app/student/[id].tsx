@@ -49,10 +49,24 @@ export default function StudentDetailScreen() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
 
-  const [classFilter, setClassFilter] = useState<'all' | 'pending' | 'paid' | 'cancelled'>('all');
+  const [classFilter, setClassFilter] = useState<'all' | 'pending' | 'upcoming' | 'paid' | 'cancelled'>('all');
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
+  const isGiven = useCallback((c: ClassSession) => {
+    if (c.status === 'cancelled' || Boolean(c.cancelReason)) return false;
+    if (c.status === 'completed') return true;
+    return c.date <= todayStr;
+  }, [todayStr]);
 
   const activeClasses = useMemo(() => {
     return classes.filter((c) => c.status !== 'cancelled' && !c.cancelReason);
@@ -62,9 +76,15 @@ export default function StudentDetailScreen() {
     return activeClasses.filter((c) => c.isPaid);
   }, [activeClasses]);
 
-  const pendingClasses = useMemo(() => {
-    return activeClasses.filter((c) => !c.isPaid);
-  }, [activeClasses]);
+  // Clases a deber: ya impartidas y no pagadas
+  const owedClasses = useMemo(() => {
+    return activeClasses.filter((c) => !c.isPaid && isGiven(c));
+  }, [activeClasses, isGiven]);
+
+  // Clases próximas: programadas en el futuro y no pagadas aún (se permite cobro anticipado)
+  const upcomingClasses = useMemo(() => {
+    return activeClasses.filter((c) => !c.isPaid && !isGiven(c));
+  }, [activeClasses, isGiven]);
 
   const cancelledClasses = useMemo(() => {
     return classes.filter((c) => c.status === 'cancelled' || Boolean(c.cancelReason));
@@ -74,14 +94,17 @@ export default function StudentDetailScreen() {
     return paidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
   }, [paidClasses]);
 
+  // Solo se deben las clases ya dadas
   const totalPending = useMemo(() => {
-    return pendingClasses.reduce((sum, c) => sum + c.totalAmount, 0);
-  }, [pendingClasses]);
+    return owedClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+  }, [owedClasses]);
 
   const displayedClasses = useMemo(() => {
     let list = classes;
     if (classFilter === 'pending') {
-      list = pendingClasses;
+      list = owedClasses;
+    } else if (classFilter === 'upcoming') {
+      list = upcomingClasses;
     } else if (classFilter === 'paid') {
       list = paidClasses;
     } else if (classFilter === 'cancelled') {
@@ -90,7 +113,7 @@ export default function StudentDetailScreen() {
     return [...list].sort(
       (a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime)
     );
-  }, [classes, pendingClasses, paidClasses, cancelledClasses, classFilter]);
+  }, [classes, owedClasses, upcomingClasses, paidClasses, cancelledClasses, classFilter]);
 
   const loadData = useCallback(async () => {
     if (!id || id === 'new') return;
@@ -435,7 +458,7 @@ export default function StudentDetailScreen() {
           </View>
           <View style={styles.statCol}>
             <StatCard
-              title="Por cobrar"
+              title="A deber"
               value={formatCurrency(totalPending)}
               icon="alert-circle-outline"
               color={totalPending > 0 ? Colors.warning : Colors.textTertiary}
@@ -482,7 +505,7 @@ export default function StudentDetailScreen() {
           onAction={() => router.push('/(tabs)/classes')}
         />
 
-        {/* Filter chips to view Todas, Por cobrar, Pagadas, Canceladas */}
+        {/* Filter chips to view Todas, A deber, Próximas, Pagadas, Canceladas */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -494,9 +517,14 @@ export default function StudentDetailScreen() {
             onPress={() => setClassFilter('all')}
           />
           <FilterChip
-            label={`Por cobrar (${pendingClasses.length})`}
+            label={`A deber (${owedClasses.length})`}
             selected={classFilter === 'pending'}
             onPress={() => setClassFilter('pending')}
+          />
+          <FilterChip
+            label={`Próximas (${upcomingClasses.length})`}
+            selected={classFilter === 'upcoming'}
+            onPress={() => setClassFilter('upcoming')}
           />
           <FilterChip
             label={`Pagadas (${paidClasses.length})`}
@@ -518,7 +546,9 @@ export default function StudentDetailScreen() {
             title="Sin clases para este filtro"
             description={
               classFilter === 'pending'
-                ? '¡Este alumno no tiene ninguna clase pendiente de cobro!'
+                ? '¡Este alumno no tiene ninguna clase pendiente a deber!'
+                : classFilter === 'upcoming'
+                ? 'No hay clases programadas a futuro para este alumno.'
                 : 'No se encontraron clases con este filtro.'
             }
           />

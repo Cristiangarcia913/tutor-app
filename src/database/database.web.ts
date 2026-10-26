@@ -25,6 +25,8 @@ import type {
 import * as web from './webStorage';
 
 export const computeEndTime = web.computeEndTime;
+export const isClassGiven = web.isClassGiven;
+export const getTodayString = web.getTodayString;
 
 export const initializeDatabase = async (): Promise<void> => {
   return web.webInit();
@@ -83,17 +85,29 @@ export const getStudentWithDetails = async (id: string): Promise<StudentWithDeta
   const payments = await web.webGetAllPayments({ studentId: id });
   const subjects = await web.webGetAllSubjects();
 
-  const totalCharged = classes.reduce((sum, c) => sum + c.totalAmount, 0);
-  const totalPaid = payments
-    .filter((p) => p.status === 'cobrado')
+  const todayStr = web.getTodayString();
+  const activeClasses = classes.filter((c) => c.status !== 'cancelled' && !c.cancelReason);
+  const givenClasses = activeClasses.filter((c) => web.isClassGiven(c, todayStr));
+
+  const totalCharged = givenClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+  const paidClassesAmount = activeClasses
+    .filter((c) => c.isPaid)
+    .reduce((sum, c) => sum + c.totalAmount, 0);
+  const standalonePayments = payments
+    .filter((p) => p.status === 'cobrado' && (!p.classSessionIds || p.classSessionIds.length === 0))
     .reduce((sum, p) => sum + p.amount, 0);
+  const totalPaid = paidClassesAmount + standalonePayments;
+
+  const unpaidGivenAmount = givenClasses
+    .filter((c) => !c.isPaid)
+    .reduce((sum, c) => sum + c.totalAmount, 0);
 
   return {
     ...student,
     subjects,
-    totalClasses: classes.length,
+    totalClasses: activeClasses.length,
     totalPaid,
-    totalPending: Math.max(totalCharged - totalPaid, 0),
+    totalPending: unpaidGivenAmount,
   };
 };
 
@@ -275,14 +289,24 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
 
 export const getMonthlyReport = async (year: number, month: number): Promise<MonthlyReport> => {
   const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-  const classes = (await web.webGetAllClasses()).filter((c) => c.date.startsWith(monthStr));
+  const todayStr = web.getTodayString();
+  const classes = (await web.webGetAllClasses()).filter(
+    (c) => c.date.startsWith(monthStr) && c.status !== 'cancelled' && !c.cancelReason
+  );
   const payments = (await web.webGetAllPayments()).filter((p) => p.date.startsWith(monthStr));
 
-  const totalHours = classes.reduce((sum, c) => sum + c.duration, 0) / 60;
-  const totalIncome = classes.reduce((sum, c) => sum + c.totalAmount, 0);
+  const givenClasses = classes.filter((c) => web.isClassGiven(c, todayStr));
+  const totalHours = givenClasses.reduce((sum, c) => sum + c.duration, 0) / 60;
+  const totalIncome = classes
+    .filter((c) => c.isPaid)
+    .reduce((sum, c) => sum + c.totalAmount, 0);
   const totalPaid = payments
     .filter((p) => p.status === 'cobrado')
     .reduce((sum, p) => sum + p.amount, 0);
+
+  const pendingGivenAmount = givenClasses
+    .filter((c) => !c.isPaid)
+    .reduce((sum, c) => sum + c.totalAmount, 0);
 
   return {
     month: monthStr,
@@ -290,7 +314,7 @@ export const getMonthlyReport = async (year: number, month: number): Promise<Mon
     totalHours,
     totalIncome,
     totalPaid,
-    totalPending: Math.max(totalIncome - totalPaid, 0),
+    totalPending: pendingGivenAmount,
   };
 };
 
@@ -329,9 +353,10 @@ export const getStudentTotalPaid = async (studentId: string): Promise<number> =>
 
 export const getStudentPendingAmount = async (studentId: string): Promise<number> => {
   const classes = await web.webGetAllClasses({ studentId });
+  const todayStr = web.getTodayString();
   const activeClasses = classes.filter((c) => c.status !== 'cancelled' && !c.cancelReason);
   return activeClasses
-    .filter((c) => !c.isPaid)
+    .filter((c) => !c.isPaid && web.isClassGiven(c, todayStr))
     .reduce((sum, c) => sum + c.totalAmount, 0);
 };
 

@@ -1155,6 +1155,9 @@ export const updateSettings = async (data: Partial<AppSettings>): Promise<AppSet
  * Get dashboard statistics
  */
 export const getDashboardStats = async (): Promise<DashboardStats> => {
+  if (Platform.OS === 'web') {
+    return web.webGetDashboardStats();
+  }
   const database = await getDb();
   const now = new Date();
 
@@ -1338,6 +1341,9 @@ export const getYearlyIncomeByMonth = async (year: number): Promise<{ month: str
  * Get per-student balance (how much each student owes or has overpaid)
  */
 export const getStudentBalances = async (): Promise<StudentBalance[]> => {
+  if (Platform.OS === 'web') {
+    return web.webGetStudentBalances();
+  }
   const database = await getDb();
   const students = await getAllStudents(true); // only active students
   const balances: StudentBalance[] = [];
@@ -1414,6 +1420,10 @@ export const getStudentTotalPaid = async (studentId: string): Promise<number> =>
  * Get total pending amount for a student
  */
 export const getStudentPendingAmount = async (studentId: string): Promise<number> => {
+  if (Platform.OS === 'web') {
+    const balances = await web.webGetStudentBalances();
+    return balances.find((b) => b.student.id === studentId)?.balance ?? 0;
+  }
   const database = await getDb();
 
   const chargedResult = await database.getFirstAsync<{ total: number }>(

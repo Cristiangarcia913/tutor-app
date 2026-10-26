@@ -67,14 +67,24 @@ export default function ReportsScreen() {
     loadData();
   }, [loadData]);
 
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
   // Overall statistics
   const totalBilled = useMemo(() => {
-    return classes.reduce((sum, c) => sum + c.totalAmount, 0);
+    return classes
+      .filter((c) => c.status !== 'cancelled' && !c.cancelReason)
+      .reduce((sum, c) => sum + c.totalAmount, 0);
   }, [classes]);
 
   const totalCollected = useMemo(() => {
     const paidClassesAmount = classes
-      .filter((c) => c.isPaid && c.status !== 'cancelled')
+      .filter((c) => c.isPaid && c.status !== 'cancelled' && !c.cancelReason)
       .reduce((sum, c) => sum + c.totalAmount, 0);
     const standalonePayments = payments
       .filter((p) => p.status === 'cobrado' && (!p.classSessionIds || p.classSessionIds.length === 0))
@@ -82,11 +92,18 @@ export default function ReportsScreen() {
     return paidClassesAmount + standalonePayments;
   }, [classes, payments]);
 
+  // Solo se consideran a deber las clases ya dadas
   const totalPending = useMemo(() => {
     return classes
-      .filter((c) => !c.isPaid && c.status !== 'cancelled')
+      .filter(
+        (c) =>
+          !c.isPaid &&
+          c.status !== 'cancelled' &&
+          !c.cancelReason &&
+          (c.date <= todayStr || c.status === 'completed')
+      )
       .reduce((sum, c) => sum + c.totalAmount, 0);
-  }, [classes]);
+  }, [classes, todayStr]);
 
   const totalHours = useMemo(() => {
     return classes.reduce((sum, c) => sum + c.duration, 0) / 60;

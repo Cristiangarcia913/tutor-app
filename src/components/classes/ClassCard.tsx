@@ -39,6 +39,10 @@ export default function ClassCard({
   const statusColor = getStatusColor(session.status);
   const locationLabel = getLocationLabel(session.location);
 
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const isFuture = session.date > todayStr && session.status !== 'completed';
+
   const displayEndTime = session.endTime && session.endTime > session.startTime
     ? session.endTime
     : (() => {
@@ -103,9 +107,16 @@ export default function ClassCard({
               backgroundColor="#D1FAE5"
               size="sm"
             />
+          ) : isFuture ? (
+            <Badge
+              text="📅 Próxima"
+              color="#4F46E5"
+              backgroundColor="#EEF2FF"
+              size="sm"
+            />
           ) : (
             <Badge
-              text="⏳ Pendiente"
+              text="⏳ A deber"
               color="#D97706"
               backgroundColor="#FEF3C7"
               size="sm"

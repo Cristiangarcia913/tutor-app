@@ -50,8 +50,13 @@ export function buildMonthlyWhatsAppReport(params: {
     .filter((c) => c.date.startsWith(targetPrefix))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  let totalAmount = 0;
-  let classesCount = 0;
+  const now = new Date();
+  const currentTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  let owedAmount = 0;
+  let paidAmount = 0;
+  let givenCount = 0;
+  let upcomingCount = 0;
   let cancelledCount = 0;
 
   const lines: string[] = [];
@@ -65,32 +70,43 @@ export function buildMonthlyWhatsAppReport(params: {
       cancelledCount++;
       const reason = cls.cancelReason?.trim() || 'Aviso previo / Festivo';
       lines.push(`• Día ${dayNumber} (${dayName}): ❌ Clase cancelada - Motivo: ${reason}`);
-    } else if (cls.isRescheduled || cls.rescheduledFromDate) {
-      classesCount++;
-      totalAmount += cls.totalAmount;
-      const originalDay = cls.rescheduledFromDate
-        ? parseInt(cls.rescheduledFromDate.split('-')[2], 10)
-        : '';
-      const originNote = originalDay ? ` (cambiada del día ${originalDay})` : '';
-      const paidNote = cls.isPaid ? ' [✓ Pagada]' : '';
-      lines.push(
-        `• Día ${dayNumber} (${dayName}): 🔄 Clase cambiada a las ${cls.startTime}${originNote} - ${cls.totalAmount.toFixed(2).replace('.', ',')} €${paidNote}`
-      );
     } else {
-      classesCount++;
-      totalAmount += cls.totalAmount;
-      const paidNote = cls.isPaid ? ' [✓ Pagada]' : '';
-      lines.push(
-        `• Día ${dayNumber} (${dayName}): Clase ${cls.startTime} - ${cls.totalAmount.toFixed(2).replace('.', ',')} €${paidNote}`
-      );
+      const isGiven = cls.status === 'completed' || cls.date <= currentTodayStr;
+
+      if (isGiven) {
+        givenCount++;
+        if (cls.isPaid) {
+          paidAmount += cls.totalAmount;
+          lines.push(
+            `• Día ${dayNumber} (${dayName}): Clase ${cls.startTime} - ${cls.totalAmount.toFixed(2).replace('.', ',')} € [✓ Pagada]`
+          );
+        } else {
+          owedAmount += cls.totalAmount;
+          lines.push(
+            `• Día ${dayNumber} (${dayName}): Clase ${cls.startTime} - ${cls.totalAmount.toFixed(2).replace('.', ',')} € [⏳ A deber]`
+          );
+        }
+      } else {
+        upcomingCount++;
+        if (cls.isPaid) {
+          paidAmount += cls.totalAmount;
+          lines.push(
+            `• Día ${dayNumber} (${dayName}): Clase ${cls.startTime} - ${cls.totalAmount.toFixed(2).replace('.', ',')} € [✓ Pagada por adelantado]`
+          );
+        } else {
+          lines.push(
+            `• Día ${dayNumber} (${dayName}): 📅 Clase programada a las ${cls.startTime} (próxima)`
+          );
+        }
+      }
     }
   }
 
   const tutorGreetingName = student.parentName?.trim() || student.firstName;
-  const formattedTotal = totalAmount.toFixed(2).replace('.', ',') + ' €';
+  const formattedOwed = owedAmount.toFixed(2).replace('.', ',') + ' €';
 
   let msg = `👋 ¡Buenos días ${tutorGreetingName}!\n\n`;
-  msg += `Te mando el resumen de las clases de ${student.firstName} de este mes (${MONTH_NAMES[monthIndex]}) y el total a abonar:\n\n`;
+  msg += `Te mando el resumen de las clases de ${student.firstName} de este mes (${MONTH_NAMES[monthIndex]}) y el estado de pagos:\n\n`;
 
   if (lines.length > 0) {
     msg += lines.join('\n') + '\n\n';
@@ -98,8 +114,13 @@ export function buildMonthlyWhatsAppReport(params: {
     msg += `• No hay sesiones registradas en este periodo.\n\n`;
   }
 
-  msg += `💰 Total a abonar: ${formattedTotal}\n`;
-  msg += `(${classesCount} ${classesCount === 1 ? 'clase realizada' : 'clases realizadas'}${cancelledCount > 0 ? `, ${cancelledCount} cancelada(s)` : ''})\n`;
+  if (owedAmount > 0) {
+    msg += `💰 Total a deber: ${formattedOwed}\n`;
+  } else {
+    msg += `💰 Total a deber: 0,00 € (¡Al día!)\n`;
+  }
+
+  msg += `(${givenCount} ${givenCount === 1 ? 'clase realizada' : 'clases realizadas'}${upcomingCount > 0 ? `, ${upcomingCount} próxima(s)` : ''}${cancelledCount > 0 ? `, ${cancelledCount} cancelada(s)` : ''})\n`;
 
   if (customNote && customNote.trim().length > 0) {
     msg += `\nNota: ${customNote.trim()}\n`;
@@ -110,9 +131,9 @@ export function buildMonthlyWhatsAppReport(params: {
   return {
     monthName,
     year,
-    classesCount,
+    classesCount: givenCount,
     cancelledCount,
-    totalAmount,
+    totalAmount: owedAmount,
     messageText: msg.trim(),
   };
 }

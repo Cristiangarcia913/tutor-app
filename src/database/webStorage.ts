@@ -161,6 +161,20 @@ const INITIAL_STUDENTS: Student[] = [
 const now = new Date();
 const todayStr = now.toISOString().split('T')[0];
 
+export const getTodayString = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const isClassGiven = (c: ClassSession, today: string = getTodayString()): boolean => {
+  if (c.status === 'cancelled' || Boolean(c.cancelReason)) return false;
+  if (c.status === 'completed') return true;
+  return c.date <= today;
+};
+
 const INITIAL_CLASSES: ClassSession[] = [
   {
     id: 'cls_1',
@@ -992,13 +1006,16 @@ export const webGetDashboardStats = async (): Promise<DashboardStats> => {
   const payments = await webGetAllPayments();
 
   const activeStudents = students.filter((s) => s.active).length;
-  const currentMonth = todayStr.substring(0, 7);
+  const currentTodayStr = getTodayString();
+  const currentMonth = currentTodayStr.substring(0, 7);
 
-  const classesThisMonth = classes.filter((c) => c.date.startsWith(currentMonth) && c.status !== 'cancelled').length;
+  const classesThisMonth = classes.filter(
+    (c) => c.date.startsWith(currentMonth) && c.status !== 'cancelled' && !c.cancelReason
+  ).length;
 
   // Ingresos reales cobrados este mes (de clases pagadas + cobros sueltos)
   const paidClassesThisMonth = classes.filter(
-    (c) => c.isPaid && c.status !== 'cancelled' && c.date.startsWith(currentMonth)
+    (c) => c.isPaid && c.status !== 'cancelled' && !c.cancelReason && c.date.startsWith(currentMonth)
   );
   const paidClassesAmount = paidClassesThisMonth.reduce((sum, c) => sum + c.totalAmount, 0);
 
@@ -1010,10 +1027,13 @@ export const webGetDashboardStats = async (): Promise<DashboardStats> => {
   );
   const totalIncomeThisMonth = paidClassesAmount + standalonePaymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
 
-  // Clases reales no pagadas (pendiente de cobro)
-  const unpaidClasses = classes.filter((c) => !c.isPaid && c.status !== 'cancelled' && !c.cancelReason);
-  const pendingPaymentAmount = unpaidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
-  const pendingPayments = unpaidClasses.length;
+  // Clases dadas reales no pagadas (a deber por el alumno)
+  // Las clases futuras programadas NO se consideran a deber, pero pueden cobrarse por adelantado
+  const owedClasses = classes.filter(
+    (c) => !c.isPaid && isClassGiven(c, currentTodayStr)
+  );
+  const pendingPaymentAmount = owedClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+  const pendingPayments = owedClasses.length;
 
   const upcomingClasses = classes
     .filter((c) => c.status === 'scheduled')
@@ -1044,7 +1064,7 @@ export const webGetDashboardStats = async (): Promise<DashboardStats> => {
   while (y < endYear || (y === endYear && m <= endM)) {
     const mStr = `${y}-${String(m).padStart(2, '0')}`;
     const mPaidClasses = classes.filter(
-      (c) => c.isPaid && c.status !== 'cancelled' && c.date.startsWith(mStr)
+      (c) => c.isPaid && c.status !== 'cancelled' && !c.cancelReason && c.date.startsWith(mStr)
     );
     const mClassesTotal = mPaidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
 
@@ -1085,20 +1105,28 @@ export const webGetDashboardStats = async (): Promise<DashboardStats> => {
 export const webGetStudentBalances = async (): Promise<StudentBalance[]> => {
   const students = await webGetAllStudents();
   const classes = await webGetAllClasses();
+  const currentTodayStr = getTodayString();
 
   return students.map((student) => {
     const studentClasses = classes.filter(
       (c) => c.studentId === student.id && c.status !== 'cancelled' && !c.cancelReason
     );
 
-    const totalCharged = studentClasses.reduce((sum, c) => sum + c.totalAmount, 0);
-    const unpaidClasses = studentClasses.filter((c) => !c.isPaid);
-    const balance = unpaidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
-    const totalPaid = Math.max(totalCharged - balance, 0);
+    // Clases ya impartidas
+    const givenClasses = studentClasses.filter((c) => isClassGiven(c, currentTodayStr));
+    const totalCharged = givenClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+
+    // Solo se debe el importe de las clases dadas no pagadas
+    const unpaidGivenClasses = givenClasses.filter((c) => !c.isPaid);
+    const balance = unpaidGivenClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+
+    // Total pagado por el alumno (incluye posibles pagos por adelantado de clases futuras)
+    const paidClasses = studentClasses.filter((c) => c.isPaid);
+    const totalPaid = paidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
 
     return {
       student,
-      totalCharged,
+      totalCharged: Math.max(totalCharged, totalPaid),
       totalPaid,
       balance,
     };

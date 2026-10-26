@@ -48,20 +48,30 @@ interface StudentClassItem {
   concept?: string;
   amount: number;
   isPaid: boolean;
+  isGiven: boolean;
   classSession?: ClassSession;
 }
 
 interface StudentFinancesGroup {
   student: Student;
-  pendingClasses: StudentClassItem[];
+  owedClasses: StudentClassItem[]; // Clases ya dadas y no pagadas (deuda real)
+  upcomingClasses: StudentClassItem[]; // Clases futuras no pagadas (no son deuda, pero se pueden cobrar por adelantado)
   paidClasses: StudentClassItem[];
-  totalPendingAmount: number;
+  allClasses: StudentClassItem[];
+  totalOwedAmount: number;
+  totalUpcomingAmount: number;
   totalPaidAmount: number;
   totalChargedAmount: number;
 }
 
 const isClassCancelled = (c: ClassSession): boolean => {
   return c.status === 'cancelled' || Boolean(c.cancelReason);
+};
+
+const isClassGiven = (c: ClassSession, today: string): boolean => {
+  if (isClassCancelled(c)) return false;
+  if (c.status === 'completed') return true;
+  return c.date <= today;
 };
 
 export default function FinancesScreen() {
@@ -148,6 +158,14 @@ export default function FinancesScreen() {
     }, [loadData])
   );
 
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
@@ -183,12 +201,13 @@ export default function FinancesScreen() {
     return paidClassesAmount + standalonePayments;
   }, [classes, payments]);
 
+  // Solo se consideran por cobrar / a deber las clases ya dadas
   const totalPending = useMemo(() => {
-    const unpaidClassesAmount = classes
-      .filter((c) => !c.isPaid && !isClassCancelled(c))
+    const unpaidGivenClassesAmount = classes
+      .filter((c) => !c.isPaid && isClassGiven(c, todayStr))
       .reduce((sum, c) => sum + c.totalAmount, 0);
-    return unpaidClassesAmount;
-  }, [classes]);
+    return unpaidGivenClassesAmount;
+  }, [classes, todayStr]);
 
   // Group classes and payments by student
   const studentGroups = useMemo<StudentFinancesGroup[]>(() => {
@@ -203,37 +222,34 @@ export default function FinancesScreen() {
         (c) => c.studentId === student.id && !isClassCancelled(c)
       );
 
-      const pendingClasses: StudentClassItem[] = sClasses
-        .filter((c) => !c.isPaid)
-        .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))
-        .map((c) => ({
-          id: c.id,
-          type: 'class',
-          date: c.date,
-          startTime: c.startTime,
-          endTime: c.endTime,
-          duration: c.duration,
-          subjectName: subjects[c.subjectId]?.name || 'Matemáticas',
-          amount: c.totalAmount,
-          isPaid: false,
-          classSession: c,
-        }));
+      const owedClasses: StudentClassItem[] = [];
+      const upcomingClasses: StudentClassItem[] = [];
+      const paidClasses: StudentClassItem[] = [];
 
-      const paidClasses: StudentClassItem[] = sClasses
-        .filter((c) => c.isPaid)
-        .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime))
-        .map((c) => ({
+      sClasses.forEach((c) => {
+        const given = isClassGiven(c, todayStr);
+        const item: StudentClassItem = {
           id: c.id,
           type: 'class',
           date: c.date,
           startTime: c.startTime,
           endTime: c.endTime,
           duration: c.duration,
-          subjectName: subjects[c.subjectId]?.name || 'Matemáticas',
+          subjectName: subjects[c.subjectId]?.name || 'Clase',
           amount: c.totalAmount,
-          isPaid: true,
+          isPaid: Boolean(c.isPaid),
+          isGiven: given,
           classSession: c,
-        }));
+        };
+
+        if (c.isPaid) {
+          paidClasses.push(item);
+        } else if (given) {
+          owedClasses.push(item);
+        } else {
+          upcomingClasses.push(item);
+        }
+      });
 
       // Standalone payments (not cancelled and not linked to cancelled classes)
       const sPayments = payments.filter((p) => {
@@ -254,44 +270,63 @@ export default function FinancesScreen() {
             concept: p.concept || 'Cobro registrado',
             amount: p.amount,
             isPaid: true,
+            isGiven: true,
           });
         } else if (p.status === 'pendiente') {
-          pendingClasses.push({
+          owedClasses.push({
             id: p.id,
             type: 'payment',
             date: p.date,
             concept: p.concept || 'Cobro pendiente',
             amount: p.amount,
             isPaid: false,
+            isGiven: true,
           });
         }
       });
 
-      const totalPendingAmount = pendingClasses.reduce((sum, item) => sum + item.amount, 0);
+      const sortByDateDesc = (a: StudentClassItem, b: StudentClassItem) =>
+        b.date.localeCompare(a.date) || (b.startTime || '').localeCompare(a.startTime || '');
+
+      owedClasses.sort(sortByDateDesc);
+      upcomingClasses.sort(sortByDateDesc);
+      paidClasses.sort(sortByDateDesc);
+
+      const allClasses = [...owedClasses, ...upcomingClasses, ...paidClasses].sort(sortByDateDesc);
+
+      const totalOwedAmount = owedClasses.reduce((sum, item) => sum + item.amount, 0);
+      const totalUpcomingAmount = upcomingClasses.reduce((sum, item) => sum + item.amount, 0);
       const totalPaidAmount = paidClasses.reduce((sum, item) => sum + item.amount, 0);
-      const totalChargedAmount = totalPendingAmount + totalPaidAmount;
+      const totalChargedAmount = totalOwedAmount + totalPaidAmount;
 
       return {
         student,
-        pendingClasses,
+        owedClasses,
+        upcomingClasses,
         paidClasses,
-        totalPendingAmount,
+        allClasses,
+        totalOwedAmount,
+        totalUpcomingAmount,
         totalPaidAmount,
         totalChargedAmount,
       };
     });
-  }, [students, classes, subjects, payments]);
+  }, [students, classes, subjects, payments, todayStr]);
 
   // Filter student groups according to selected status filter
   const filteredStudentGroups = useMemo(() => {
     return studentGroups.filter((group) => {
       if (statusFilter === 'por_pagar') {
-        return group.pendingClasses.length > 0;
+        return group.owedClasses.length > 0;
       }
       if (statusFilter === 'pagada') {
         return group.paidClasses.length > 0;
       }
-      return group.pendingClasses.length > 0 || group.paidClasses.length > 0;
+      return (
+        group.owedClasses.length > 0 ||
+        group.upcomingClasses.length > 0 ||
+        group.paidClasses.length > 0
+      );
     });
   }, [studentGroups, statusFilter]);
 
@@ -305,20 +340,20 @@ export default function FinancesScreen() {
     }
   };
 
-  const handleMarkStudentAllPaid = async (studentId: string) => {
+  const handleMarkStudentOwedPaid = async (studentId: string) => {
     try {
-      const studentUnpaidClasses = classes.filter(
-        (c) => c.studentId === studentId && !c.isPaid && !isClassCancelled(c)
+      const studentOwedClasses = classes.filter(
+        (c) => c.studentId === studentId && !c.isPaid && isClassGiven(c, todayStr)
       );
-      if (studentUnpaidClasses.length === 0) return;
+      if (studentOwedClasses.length === 0) return;
 
-      for (const cls of studentUnpaidClasses) {
+      for (const cls of studentOwedClasses) {
         await db.toggleClassPaid(cls.id);
       }
       await loadData();
-      Alert.alert('¡Cobrado!', 'Todas las clases pendientes han sido marcadas como pagadas.');
+      Alert.alert('¡Cobrado!', 'Las clases a deber han sido marcadas como pagadas.');
     } catch (e) {
-      console.error('Error marking all paid:', e);
+      console.error('Error marking owed paid:', e);
       Alert.alert('Error', 'No se pudieron actualizar los cobros.');
     }
   };
@@ -326,7 +361,7 @@ export default function FinancesScreen() {
   const statusFilters: { key: StatusFilter; label: string }[] = [
     { key: 'all', label: 'Todos' },
     { key: 'pagada', label: 'Pagadas' },
-    { key: 'por_pagar', label: 'Por pagar' },
+    { key: 'por_pagar', label: 'A deber' },
   ];
 
   return (
@@ -430,7 +465,7 @@ export default function FinancesScreen() {
                 title={statusFilter === 'por_pagar' ? '¡Todo al día!' : 'No hay datos'}
                 description={
                   statusFilter === 'por_pagar'
-                    ? 'No hay ninguna clase pendiente de cobro este mes. ¡Todos los alumnos están al día!'
+                    ? 'No hay ninguna clase a deber pendiente de cobro. ¡Todos los alumnos están al día!'
                     : statusFilter === 'pagada'
                     ? 'Aún no has marcado clases como cobradas este mes.'
                     : 'Aún no tienes clases registradas. Programa una nueva clase en el calendario.'
@@ -447,15 +482,16 @@ export default function FinancesScreen() {
             }
             renderItem={({ item: group }) => {
               const isExpanded = Boolean(expandedStudents[group.student.id]);
-              const pendingCount = group.pendingClasses.length;
+              const owedCount = group.owedClasses.length;
+              const upcomingCount = group.upcomingClasses.length;
               const paidCount = group.paidClasses.length;
 
               const itemsToShow: StudentClassItem[] =
                 statusFilter === 'por_pagar'
-                  ? group.pendingClasses
+                  ? group.owedClasses
                   : statusFilter === 'pagada'
                   ? group.paidClasses
-                  : [...group.pendingClasses, ...group.paidClasses];
+                  : group.allClasses;
 
               return (
                 <Card style={styles.studentCard}>
@@ -478,13 +514,23 @@ export default function FinancesScreen() {
                         </Text>
                         <Text style={styles.studentCardSub}>
                           {group.student.course ? `${group.student.course} • ` : ''}
-                          {pendingCount > 0 ? (
+                          {owedCount > 0 ? (
                             <Text style={{ color: Colors.warning, fontWeight: '700' }}>
-                              {pendingCount} {pendingCount === 1 ? 'clase por pagar' : 'clases por pagar'} ({formatCurrency(group.totalPendingAmount)})
+                              {owedCount} {owedCount === 1 ? 'clase a deber' : 'clases a deber'} ({formatCurrency(group.totalOwedAmount)})
+                              {upcomingCount > 0 ? (
+                                <Text style={{ color: Colors.textSecondary, fontWeight: '500' }}>
+                                  {` • ${upcomingCount} próximas`}
+                                </Text>
+                              ) : null}
                             </Text>
                           ) : (
                             <Text style={{ color: Colors.success, fontWeight: '700' }}>
                               ✓ Al día ({paidCount} {paidCount === 1 ? 'pagada' : 'pagadas'})
+                              {upcomingCount > 0 ? (
+                                <Text style={{ color: Colors.textSecondary, fontWeight: '500' }}>
+                                  {` • ${upcomingCount} próximas`}
+                                </Text>
+                              ) : null}
                             </Text>
                           )}
                         </Text>
@@ -492,16 +538,16 @@ export default function FinancesScreen() {
                     </View>
 
                     <View style={styles.studentHeaderRight}>
-                      {/* Batch Pay Button for this student */}
-                      {pendingCount > 0 && (
+                      {/* Batch Pay Button for this student (only pays owed classes that have been given) */}
+                      {owedCount > 0 && (
                         <TouchableOpacity
                           style={styles.batchPayButton}
                           activeOpacity={0.85}
-                          onPress={() => handleMarkStudentAllPaid(group.student.id)}
+                          onPress={() => handleMarkStudentOwedPaid(group.student.id)}
                         >
                           <Ionicons name="checkmark-done" size={13} color="#FFFFFF" />
                           <Text style={styles.batchPayText}>
-                            Cobrar ({formatCurrency(group.totalPendingAmount)})
+                            Cobrar ({formatCurrency(group.totalOwedAmount)})
                           </Text>
                         </TouchableOpacity>
                       )}
@@ -534,13 +580,47 @@ export default function FinancesScreen() {
                               <View
                                 style={[
                                   styles.statusDot,
-                                  { backgroundColor: item.isPaid ? Colors.success : Colors.warning },
+                                  {
+                                    backgroundColor: item.isPaid
+                                      ? Colors.success
+                                      : item.isGiven
+                                      ? Colors.warning
+                                      : Colors.primary,
+                                  },
                                 ]}
                               />
                               <Text style={styles.classItemDate}>{formatDate(item.date)}</Text>
                               {item.startTime ? (
                                 <Text style={styles.classItemTime}>• {item.startTime}</Text>
                               ) : null}
+                              {item.type === 'class' && (
+                                <Badge
+                                  text={
+                                    item.isPaid
+                                      ? item.isGiven
+                                        ? '✓ Pagada'
+                                        : '✓ Adelantada'
+                                      : item.isGiven
+                                      ? '⏳ A deber'
+                                      : '📅 Próxima'
+                                  }
+                                  color={
+                                    item.isPaid
+                                      ? '#047857'
+                                      : item.isGiven
+                                      ? '#D97706'
+                                      : '#4F46E5'
+                                  }
+                                  backgroundColor={
+                                    item.isPaid
+                                      ? '#D1FAE5'
+                                      : item.isGiven
+                                      ? '#FEF3C7'
+                                      : '#EEF2FF'
+                                  }
+                                  size="sm"
+                                />
+                              )}
                             </View>
                             <Text style={styles.classItemSubject}>
                               {item.subjectName || item.concept || 'Matemáticas'}
@@ -717,11 +797,11 @@ export default function FinancesScreen() {
                     <TouchableOpacity
                       style={styles.balanceChargeBtn}
                       activeOpacity={0.85}
-                      onPress={() => handleMarkStudentAllPaid(item.student.id)}
+                      onPress={() => handleMarkStudentOwedPaid(item.student.id)}
                     >
                       <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" />
                       <Text style={styles.balanceChargeBtnText}>
-                        Cobrar todo ({formatCurrency(item.balance)})
+                        Cobrar deuda ({formatCurrency(item.balance)})
                       </Text>
                     </TouchableOpacity>
                   )}
