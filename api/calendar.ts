@@ -202,9 +202,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         // Ignorar restricciones en entornos de solo lectura
       }
 
-      // Sincronizar en la nube global (ntfy.sh) para que todas las instancias serverless tengan el calendario actualizado
+      // Sincronizar en la nube permanente (restful-api) y en tiempo real (ntfy.sh)
       try {
         await Promise.allSettled([
+          fetch('https://api.restful-api.dev/objects/ff808181a09d98f701a1780e32f514cd', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: `tutorapp_cal_${key}`,
+              data: { ics: icsData },
+            }),
+          }),
           fetch(`https://ntfy.sh/tutorapp_cal_${key}_v2`, {
             method: 'POST',
             body: icsData,
@@ -252,7 +260,32 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    // 2. Si no está en memoria ni /tmp, consultar la nube global (ntfy.sh)
+    // 2. Si no está en memoria ni /tmp, consultar almacenamiento permanente en la nube (restful-api)
+    if (!icsContent) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const persistentRes = await fetch(
+          'https://api.restful-api.dev/objects/ff808181a09d98f701a1780e32f514cd',
+          { signal: controller.signal }
+        );
+        clearTimeout(timeoutId);
+        if (persistentRes.ok) {
+          const json = await persistentRes.json();
+          if (json?.data?.ics && json.data.ics.includes('BEGIN:VCALENDAR')) {
+            icsContent = json.data.ics;
+            memoryCache[key] = icsContent;
+            try {
+              fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
+            } catch {}
+          }
+        }
+      } catch (persistentErr) {
+        // Continuar al fallback de ntfy
+      }
+    }
+
+    // 3. Fallback: consultar la nube en tiempo real (ntfy.sh)
     if (!icsContent) {
       const topics = [`tutorapp_cal_${key}_v2`, `tutorapp_cal_${key}`];
       for (const topic of topics) {

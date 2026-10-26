@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
   SectionHeader,
   ConfirmDialog,
   StatCard,
+  FilterChip,
 } from '../../src/components/common';
 import ClassCard from '../../src/components/classes/ClassCard';
 import PaymentCard from '../../src/components/finances/PaymentCard';
@@ -48,33 +49,64 @@ export default function StudentDetailScreen() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [subjects, setSubjects] = useState<Record<string, Subject>>({});
 
-  const [balance, setBalance] = useState<{ charged: number; paid: number; pending: number }>({
-    charged: 0,
-    paid: 0,
-    pending: 0,
-  });
-
+  const [classFilter, setClassFilter] = useState<'all' | 'pending' | 'paid' | 'cancelled'>('all');
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+  const activeClasses = useMemo(() => {
+    return classes.filter((c) => c.status !== 'cancelled' && !c.cancelReason);
+  }, [classes]);
+
+  const paidClasses = useMemo(() => {
+    return activeClasses.filter((c) => c.isPaid);
+  }, [activeClasses]);
+
+  const pendingClasses = useMemo(() => {
+    return activeClasses.filter((c) => !c.isPaid);
+  }, [activeClasses]);
+
+  const cancelledClasses = useMemo(() => {
+    return classes.filter((c) => c.status === 'cancelled' || Boolean(c.cancelReason));
+  }, [classes]);
+
+  const totalPaid = useMemo(() => {
+    return paidClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+  }, [paidClasses]);
+
+  const totalPending = useMemo(() => {
+    return pendingClasses.reduce((sum, c) => sum + c.totalAmount, 0);
+  }, [pendingClasses]);
+
+  const displayedClasses = useMemo(() => {
+    let list = classes;
+    if (classFilter === 'pending') {
+      list = pendingClasses;
+    } else if (classFilter === 'paid') {
+      list = paidClasses;
+    } else if (classFilter === 'cancelled') {
+      list = cancelledClasses;
+    }
+    return [...list].sort(
+      (a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime)
+    );
+  }, [classes, pendingClasses, paidClasses, cancelledClasses, classFilter]);
+
   const loadData = useCallback(async () => {
     if (!id || id === 'new') return;
     try {
-      const [studentData, classesData, paymentsData, subjectsData, balanceData, settingsData] =
+      const [studentData, classesData, paymentsData, subjectsData, settingsData] =
         await Promise.all([
           db.getStudent(id),
           db.getClassesByStudent(id),
           db.getPaymentsByStudent(id),
           db.loadSubjects(),
-          db.getStudentBalance(id),
           db.loadSettings(),
         ]);
 
       setStudent(studentData);
       setClasses(classesData);
       setPayments(paymentsData);
-      setBalance(balanceData);
       setSettings(settingsData);
 
       const subMap: Record<string, Subject> = {};
@@ -388,7 +420,7 @@ export default function StudentDetailScreen() {
           <View style={styles.statCol}>
             <StatCard
               title="Clases"
-              value={classes.length}
+              value={activeClasses.length}
               icon="calendar-outline"
               color={Colors.primary}
             />
@@ -396,17 +428,17 @@ export default function StudentDetailScreen() {
           <View style={styles.statCol}>
             <StatCard
               title="Cobrado"
-              value={formatCurrency(balance.paid)}
+              value={formatCurrency(totalPaid)}
               icon="checkmark-done-outline"
               color={Colors.success}
             />
           </View>
           <View style={styles.statCol}>
             <StatCard
-              title="Pendiente"
-              value={formatCurrency(balance.pending)}
+              title="Por cobrar"
+              value={formatCurrency(totalPending)}
               icon="alert-circle-outline"
-              color={balance.pending > 0 ? Colors.warning : Colors.textTertiary}
+              color={totalPending > 0 ? Colors.warning : Colors.textTertiary}
             />
           </View>
         </View>
@@ -433,7 +465,7 @@ export default function StudentDetailScreen() {
                 pathname: '/payment/new',
                 params: {
                   studentId: student.id,
-                  amount: balance.pending > 0 ? balance.pending.toString() : '',
+                  amount: totalPending > 0 ? totalPending.toString() : '',
                 },
               })
             }
@@ -445,19 +477,53 @@ export default function StudentDetailScreen() {
 
         {/* Classes History Section */}
         <SectionHeader
-          title={`Clases (${classes.length})`}
-          actionLabel="Ver todas"
+          title={`Historial de Clases (${classes.length})`}
+          actionLabel="Ver Calendario"
           onAction={() => router.push('/(tabs)/classes')}
         />
 
-        {classes.length === 0 ? (
+        {/* Filter chips to view Todas, Por cobrar, Pagadas, Canceladas */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterChipsRow}
+        >
+          <FilterChip
+            label={`Todas (${classes.length})`}
+            selected={classFilter === 'all'}
+            onPress={() => setClassFilter('all')}
+          />
+          <FilterChip
+            label={`Por cobrar (${pendingClasses.length})`}
+            selected={classFilter === 'pending'}
+            onPress={() => setClassFilter('pending')}
+          />
+          <FilterChip
+            label={`Pagadas (${paidClasses.length})`}
+            selected={classFilter === 'paid'}
+            onPress={() => setClassFilter('paid')}
+          />
+          {cancelledClasses.length > 0 && (
+            <FilterChip
+              label={`Canceladas (${cancelledClasses.length})`}
+              selected={classFilter === 'cancelled'}
+              onPress={() => setClassFilter('cancelled')}
+            />
+          )}
+        </ScrollView>
+
+        {displayedClasses.length === 0 ? (
           <EmptyState
             icon="calendar-outline"
-            title="Sin clases registradas"
-            description="Programa la primera clase particular para este alumno."
+            title="Sin clases para este filtro"
+            description={
+              classFilter === 'pending'
+                ? '¡Este alumno no tiene ninguna clase pendiente de cobro!'
+                : 'No se encontraron clases con este filtro.'
+            }
           />
         ) : (
-          classes.slice(0, 5).map((session) => (
+          displayedClasses.map((session) => (
             <ClassCard
               key={session.id}
               session={session}
@@ -818,5 +884,10 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: '700',
     fontSize: 12,
+  },
+  filterChipsRow: {
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.xs,
+    paddingBottom: Spacing.sm,
   },
 });

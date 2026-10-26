@@ -239,19 +239,40 @@ export const syncCalendarToServer = async (
     // Guardar también copia local para descarga offline directa
     localStorage.setItem('tutorapp_cached_ics', icsContent);
 
-    const response = await fetch(`/api/calendar?key=${feedKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        key: feedKey,
-        ics: icsContent,
-        updatedAt: new Date().toISOString(),
+    const [apiRes] = await Promise.allSettled([
+      fetch(`/api/calendar?key=${feedKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          key: feedKey,
+          ics: icsContent,
+          updatedAt: new Date().toISOString(),
+        }),
       }),
-    });
+      fetch('https://api.restful-api.dev/objects/ff808181a09d98f701a1780e32f514cd', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `tutorapp_cal_${feedKey}`,
+          data: { ics: icsContent },
+        }),
+      }),
+      fetch(`https://ntfy.sh/tutorapp_cal_${feedKey}_v2`, {
+        method: 'POST',
+        body: icsContent,
+        headers: {
+          'Title': 'TutorApp Calendar Sync',
+          'Tags': 'calendar',
+          'Filename': 'calendar.ics',
+        },
+      }),
+    ]);
 
-    return response.ok;
+    return apiRes.status === 'fulfilled' && apiRes.value.ok;
   } catch (err) {
     console.warn('Silent calendar cloud sync notice:', err);
     return false;

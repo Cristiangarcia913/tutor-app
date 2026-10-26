@@ -313,23 +313,26 @@ export const getWeeklyIncome = async (): Promise<number> => {
 };
 
 export const getStudentTotalPaid = async (studentId: string): Promise<number> => {
+  const classes = await web.webGetAllClasses({ studentId });
+  const activeClasses = classes.filter((c) => c.status !== 'cancelled' && !c.cancelReason);
+  const paidClassesAmount = activeClasses
+    .filter((c) => c.isPaid)
+    .reduce((sum, c) => sum + c.totalAmount, 0);
+
   const payments = await web.webGetAllPayments({ studentId });
-  return payments
-    .filter((p) => p.status === 'cobrado')
+  const standalonePayments = payments
+    .filter((p) => p.status === 'cobrado' && (!p.classSessionIds || p.classSessionIds.length === 0))
     .reduce((sum, p) => sum + p.amount, 0);
+
+  return paidClassesAmount + standalonePayments;
 };
 
 export const getStudentPendingAmount = async (studentId: string): Promise<number> => {
   const classes = await web.webGetAllClasses({ studentId });
   const activeClasses = classes.filter((c) => c.status !== 'cancelled' && !c.cancelReason);
-  const payments = await web.webGetAllPayments({ studentId });
-
-  const totalCharged = activeClasses.reduce((sum, c) => sum + c.totalAmount, 0);
-  const totalPaid = payments
-    .filter((p) => p.status === 'cobrado')
-    .reduce((sum, p) => sum + p.amount, 0);
-
-  return Math.max(totalCharged - totalPaid, 0);
+  return activeClasses
+    .filter((c) => !c.isPaid)
+    .reduce((sum, c) => sum + c.totalAmount, 0);
 };
 
 export const exportData = async (): Promise<any> => {
