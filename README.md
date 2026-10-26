@@ -4,6 +4,7 @@
 > Multiplataforma: **iOS (iPhone / iPad)**, **Android** y **Web (Navegador)**.
 
 [![GitHub Repo](https://img.shields.io/badge/GitHub-Cristiangarcia913%2Ftutor--app-181717?logo=github)](https://github.com/Cristiangarcia913/tutor-app)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](CHANGELOG.md)
 ![React Native](https://img.shields.io/badge/React%20Native-0.76-61DAFB?logo=react&logoColor=black)
 ![Expo](https://img.shields.io/badge/Expo-SDK%2052-000020?logo=expo)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript&logoColor=white)
@@ -245,9 +246,10 @@ tutor-app/
 
 ---
 
-## 📄 Licencia
+## 📄 Licencia y Versiones
 
-Este proyecto está bajo la Licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más información.
+- **Historial de cambios:** Consulta el archivo [CHANGELOG.md](CHANGELOG.md) para ver la evolución de versiones y mejoras.
+- **Licencia:** Este proyecto está bajo la Licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más información.
 
 ## 👨‍💻 Autor
 

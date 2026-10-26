@@ -1,6 +1,24 @@
 {
   "name": "tutor-app",
-  "version": "1.0.0",
+  "version": "1.2.0",
+  "description": "Aplicación profesional para la gestión de clases particulares, alumnos y finanzas",
+  "author": "Cristian García Del Olmo <cristiangarciadelolmo06@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/Cristiangarcia913/tutor-app#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Cristiangarcia913/tutor-app.git"
+  },
+  "keywords": [
+    "tutor",
+    "education",
+    "react-native",
+    "expo",
+    "ios",
+    "calendar",
+    "finance",
+    "classes"
+  ],
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",

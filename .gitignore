@@ -47,3 +47,11 @@ build/
 *.ipa
 *.apk
 *.aab
+
+# Editor & AI tool configs
+.claude/
+.gemini/
+.antigravity/
+.cursor/
+*.prompt
+AGENTS.md
