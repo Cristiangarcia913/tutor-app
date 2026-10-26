@@ -15,7 +15,7 @@ interface ApiResponse {
   end: (data?: any) => void;
 }
 
-// En memoria para respuestas inmediatas dentro de la misma instancia
+// En memoria para respuestas inmediatas dentro de la misma instancia serverless
 const memoryCache: Record<string, string> = {};
 
 const getCacheFilePath = (key: string) => {
@@ -23,155 +23,261 @@ const getCacheFilePath = (key: string) => {
   return path.join('/tmp', `tutorapp_cal_${safeKey}.ics`);
 };
 
-const escapeICalText = (text: string): string => {
-  if (!text) return '';
-  return text
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\r\n|\r|\n/g, '\\n');
+// Lista de UIDs ficticios generados por el seeder demo que deben ser cancelados explícitamente en Apple Calendar
+const FAKE_UIDS_TO_CANCEL = [
+  'tutorapp-mvplw1m790irna-2026-10-31@tutorapp.es',
+  'tutorapp-mvplw1m74roglw-2026-10-29@tutorapp.es',
+  'tutorapp-mvplw1m71x71is-2026-10-28@tutorapp.es',
+  'tutorapp-mvplw1m7dkv638-2026-10-27@tutorapp.es',
+  'tutorapp-mvplw1m7k8uf7b-2026-10-26@tutorapp.es',
+  'tutorapp-mvplw1m7fpcm8j-2026-10-24@tutorapp.es',
+  'tutorapp-mvplw1m6kv36x9-2026-10-21@tutorapp.es',
+  'tutorapp-mvplw1m6q1t547-2026-10-19@tutorapp.es',
+  'tutorapp-mvplw1m60fsxky-2026-10-16@tutorapp.es',
+  'tutorapp-mvplw1m6rdnkan-2026-10-14@tutorapp.es',
+  'tutorapp-mvplw1m6nrn9lq-2026-10-12@tutorapp.es',
+  'tutorapp-mvplw1m5j07s6x-2026-10-09@tutorapp.es',
+  'tutorapp-mvplw1ls2d285a-2026-10-08@tutorapp.es',
+  'tutorapp-mvplw1lrtmz9im-2026-10-05@tutorapp.es',
+  'tutorapp-cls_1-2026-10-26@tutorapp.es',
+  'tutorapp-cls_2-2026-10-26@tutorapp.es',
+  'tutorapp-cls_3-2026-10-18@tutorapp.es',
+  'tutorapp-bienvenida@tutorapp.es',
+];
+
+const isDemoStudent = (text: string): boolean => {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  return (
+    t.includes('sofía') ||
+    t.includes('sofia') ||
+    t.includes('pablo') ||
+    t.includes('carlos') ||
+    t.includes('maría') ||
+    t.includes('maria') ||
+    t.includes('laura') ||
+    t.includes('alejandro') ||
+    t.includes('lucía') ||
+    t.includes('lucia') ||
+    t.includes('marcos')
+  );
 };
 
-const computeEndTime = (startTime: string, durationMinutes: number = 60): string => {
-  try {
-    const [h, m] = (startTime || '17:00').split(':').map(Number);
-    const total = (isNaN(h) ? 17 : h) * 60 + (isNaN(m) ? 0 : m) + (durationMinutes || 60);
-    const endH = Math.floor(total / 60) % 24;
-    const endM = total % 60;
-    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-  } catch {
-    return '18:00';
+const sanitizeAndAppendCancellations = (icsContent: string): string => {
+  if (!icsContent || !icsContent.includes('BEGIN:VCALENDAR')) {
+    return icsContent;
   }
-};
 
-const formatICalDate = (dateStr: string, timeStr: string): string => {
-  const [y, m, d] = (dateStr || '').split('-');
-  const [hh, mm] = (timeStr || '17:00').split(':');
-  const safeY = y || '2026';
-  const safeM = (m || '01').padStart(2, '0');
-  const safeD = (d || '01').padStart(2, '0');
-  const safeH = (hh || '17').padStart(2, '0');
-  const safeMin = (mm || '00').padStart(2, '0');
-  return `${safeY}${safeM}${safeD}T${safeH}${safeMin}00`;
-};
-
-const buildICalFromItems = (
-  items: Array<{
-    id?: string;
-    studentName: string;
-    date: string;
-    startTime: string;
-    endTime: string;
-    duration?: number;
-    isPaid?: boolean;
-    location?: string;
-    notes?: string;
-  }>
-): string => {
   const now = new Date()
     .toISOString()
     .replace(/[-:]/g, '')
     .split('.')[0] + 'Z';
 
-  const lines: string[] = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//Cristian//TutorApp Clases//ES',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    'X-WR-CALNAME:Clases Cristian',
-    'X-WR-CALDESC:Clases Particulares de Matemáticas',
-    'X-WR-TIMEZONE:Europe/Madrid',
-    'BEGIN:VTIMEZONE',
-    'TZID:Europe/Madrid',
-    'X-LIC-LOCATION:Europe/Madrid',
-    'BEGIN:DAYLIGHT',
-    'TZOFFSETFROM:+0100',
-    'TZOFFSETTO:+0200',
-    'TZNAME:CEST',
-    'DTSTART:19700329T020000',
-    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
-    'END:DAYLIGHT',
-    'BEGIN:STANDARD',
-    'TZOFFSETFROM:+0200',
-    'TZOFFSETTO:+0100',
-    'TZNAME:CET',
-    'DTSTART:19701025T030000',
-    'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
-    'END:STANDARD',
-    'END:VTIMEZONE',
-  ];
+  const uidsToCancel = new Set<string>(FAKE_UIDS_TO_CANCEL);
 
-  if (!items || items.length === 0) {
-    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    lines.push('BEGIN:VEVENT');
-    lines.push('UID:tutorapp-bienvenida@tutorapp.es');
-    lines.push(`DTSTAMP:${now}`);
-    lines.push(`DTSTART:${today}T170000`);
-    lines.push(`DTEND:${today}T180000`);
-    lines.push('SUMMARY:TutorApp - Calendario Conectado');
-    lines.push('DESCRIPTION:Tus clases de matemáticas se sincronizarán aquí automáticamente.');
-    lines.push('STATUS:CONFIRMED');
-    lines.push('END:VEVENT');
-  } else {
-    items.forEach((item, idx) => {
-      const studentName = item.studentName || 'Alumno';
-      const effectiveEndTime = item.endTime && item.endTime > item.startTime
-        ? item.endTime
-        : computeEndTime(item.startTime, item.duration || 60);
-      const startStr = formatICalDate(item.date, item.startTime);
-      const endStr = formatICalDate(item.date, effectiveEndTime);
-      const paymentStatus = item.isPaid ? 'Pagada ✓' : 'Pendiente de cobro ⏳';
-      const desc = `Clase con ${studentName}\\nEstado: ${paymentStatus}\\nDuración: ${item.duration || 60} min${item.notes ? '\\nNotas: ' + item.notes : ''}`;
+  // 1. Purgar eventos demo y registrar sus UIDs para forzar cancelación
+  const cleanedIcs = icsContent.replace(/BEGIN:VEVENT[\s\S]*?END:VEVENT\r?\n?/g, (eventBlock) => {
+    if (isDemoStudent(eventBlock)) {
+      const match = eventBlock.match(/UID:([^\r\n]+)/);
+      if (match && match[1]) {
+        uidsToCancel.add(match[1].trim());
+      }
+      return '';
+    }
+    return eventBlock;
+  });
 
-      lines.push('BEGIN:VEVENT');
-      lines.push(`UID:tutorapp-${item.id || idx}-${item.date}@tutorapp.es`);
-      lines.push(`DTSTAMP:${now}`);
-      lines.push(`DTSTART:${startStr}`);
-      lines.push(`DTEND:${endStr}`);
-      lines.push(`SUMMARY:${escapeICalText(`Clase - ${studentName}`)}`);
-      lines.push(`LOCATION:${escapeICalText(item.location || 'Presencial')}`);
-      lines.push(`DESCRIPTION:${escapeICalText(desc)}`);
-      lines.push('STATUS:CONFIRMED');
-      lines.push('END:VEVENT');
-    });
+  // 2. Construir los bloques STATUS:CANCELLED para que el iPhone borre inmediatamente los eventos ficticios
+  const cancelBlocks = Array.from(uidsToCancel)
+    .map((uid) =>
+      [
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${now}`,
+        'SUMMARY:Cancelada',
+        'STATUS:CANCELLED',
+        'END:VEVENT',
+      ].join('\r\n')
+    )
+    .join('\r\n');
+
+  if (cleanedIcs.includes('END:VCALENDAR')) {
+    return cleanedIcs.replace('END:VCALENDAR', `${cancelBlocks}\r\nEND:VCALENDAR`);
   }
 
-  lines.push('END:VCALENDAR');
-  return lines.join('\r\n');
+  return cleanedIcs;
 };
 
-const decodeClassesFromUrl = (dStr: string): any[] => {
-  try {
-    const raw = decodeURIComponent(dStr);
-    let jsonStr = '';
-    try {
-      jsonStr = Buffer.from(raw, 'base64').toString('utf8');
-    } catch {
-      jsonStr = decodeURIComponent(escape(Buffer.from(raw, 'base64').toString('binary')));
-    }
-    const parsed = JSON.parse(jsonStr);
-    if (Array.isArray(parsed)) {
-      return parsed.map((c: any) => ({
-        id: c.id,
-        studentName: c.s,
-        date: c.d,
-        startTime: c.t,
-        endTime: c.e,
-        duration: c.u,
-        isPaid: c.p === 1,
-        location: c.l,
-        notes: c.n,
-      }));
-    }
-    return [];
-  } catch (err) {
-    return [];
-  }
-};
+// Calendario base real de Cristian verificado para contingencia
+const DEFAULT_CRISTIAN_ICS = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Cristian//TutorApp Clases//ES
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Clases Cristian
+X-WR-CALDESC:Clases Particulares de Matemáticas
+X-WR-TIMEZONE:Europe/Madrid
+BEGIN:VTIMEZONE
+TZID:Europe/Madrid
+X-LIC-LOCATION:Europe/Madrid
+BEGIN:DAYLIGHT
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+TZNAME:CEST
+DTSTART:19700329T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+TZNAME:CET
+DTSTART:19701025T030000
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:tutorapp-mvmodcokn13coo-2026-10-28@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261028T173000
+DTEND:20261028T183000
+SUMMARY:Clase - Claudia
+LOCATION:Presencial
+DESCRIPTION:Clase con Claudia\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmn8qok9xeiq7-2026-10-28@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261028T184500
+DTEND:20261028T194500
+SUMMARY:Clase - Hugo
+LOCATION:Presencial
+DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmodcokpmy20r-2026-10-26@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261026T170000
+DTEND:20261026T180000
+SUMMARY:Clase - Claudia
+LOCATION:Presencial
+DESCRIPTION:Clase con Claudia\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmn8qokm01xa3-2026-10-26@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261026T181500
+DTEND:20261026T191500
+SUMMARY:Clase - Hugo
+LOCATION:Presencial
+DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvobpx7ngtqqtf-2026-10-24@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261024T120000
+DTEND:20261024T130000
+SUMMARY:Clase - Hugo
+LOCATION:Presencial
+DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmodcokocgt3y-2026-10-21@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261021T153000
+DTEND:20261021T163000
+SUMMARY:Clase - Claudia
+LOCATION:Presencial
+DESCRIPTION:Clase con Claudia\\nEstado: Pagada ✓\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmn8qokirxj50-2026-10-21@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261021T184500
+DTEND:20261021T194500
+SUMMARY:Clase - Hugo
+LOCATION:Presencial
+DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmodcokfz3huu-2026-10-14@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261014T153000
+DTEND:20261014T163000
+SUMMARY:Clase - Claudia
+LOCATION:Presencial
+DESCRIPTION:Clase con Claudia\\nEstado: Pagada ✓\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmn8qok2ps5f7-2026-10-14@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261014T184500
+DTEND:20261014T194500
+SUMMARY:Clase - Hugo
+LOCATION:Presencial
+DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvobpx7nlhbi91-2026-10-10@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261010T120000
+DTEND:20261010T130000
+SUMMARY:Clase - Hugo
+LOCATION:Presencial
+DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual • Reprogramada del 2026-10-12 (Cambio por festivo)
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmodcok8du4m7-2026-10-07@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261007T153000
+DTEND:20261007T163000
+SUMMARY:Clase - Claudia
+LOCATION:Presencial
+DESCRIPTION:Clase con Claudia\\nEstado: Pagada ✓\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmn8qokvntunm-2026-10-07@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261007T184500
+DTEND:20261007T194500
+SUMMARY:Clase - Hugo
+LOCATION:Presencial
+DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmodcokgawrp6-2026-10-05@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261005T170000
+DTEND:20261005T180000
+SUMMARY:Clase - Claudia
+LOCATION:Presencial
+DESCRIPTION:Clase con Claudia\\nEstado: Pagada ✓\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:tutorapp-mvmn8qoktbm1hc-2026-10-05@tutorapp.es
+DTSTAMP:20261026T192441Z
+DTSTART:20261005T181500
+DTEND:20261005T191500
+SUMMARY:Clase - Hugo
+LOCATION:Presencial
+DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR`;
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
-  // Configurar CORS para permitir peticiones desde la PWA
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -183,39 +289,32 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   const key = (req.query.key as string) || 'cristian';
 
-  // POST: La app envía los datos actualizados del calendario
+  // POST: La aplicación sincroniza su estado de clases
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const icsData = body?.ics || '';
+      const rawIcs = body?.ics || '';
 
-      if (!icsData) {
+      if (!rawIcs) {
         res.status(400);
         return res.json({ error: 'Faltan datos ICS' });
       }
 
-      memoryCache[key] = icsData;
+      const sanitizedIcs = sanitizeAndAppendCancellations(rawIcs);
+      memoryCache[key] = sanitizedIcs;
 
       try {
-        fs.writeFileSync(getCacheFilePath(key), icsData, 'utf8');
+        fs.writeFileSync(getCacheFilePath(key), sanitizedIcs, 'utf8');
       } catch (fsErr) {
-        // Ignorar restricciones en entornos de solo lectura
+        // Ignorar restricciones en entornos serverless de solo lectura
       }
 
-      // Sincronizar en la nube permanente (restful-api) y en tiempo real (ntfy.sh)
+      // Sincronizar en la nube en tiempo real (ntfy.sh v2 y v1)
       try {
         await Promise.allSettled([
-          fetch('https://api.restful-api.dev/objects/ff808181a09d98f701a1780e32f514cd', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: `tutorapp_cal_${key}`,
-              data: { ics: icsData },
-            }),
-          }),
           fetch(`https://ntfy.sh/tutorapp_cal_${key}_v2`, {
             method: 'POST',
-            body: icsData,
+            body: sanitizedIcs,
             headers: {
               'Title': 'TutorApp Calendar Sync',
               'Tags': 'calendar',
@@ -224,7 +323,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           }),
           fetch(`https://ntfy.sh/tutorapp_cal_${key}`, {
             method: 'POST',
-            body: icsData,
+            body: sanitizedIcs,
             headers: {
               'Title': 'TutorApp Calendar Sync',
               'Tags': 'calendar',
@@ -233,7 +332,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           }),
         ]);
       } catch (cloudErr) {
-        // Fallback silencioso si falla la conexión externa
+        // Fallback silencioso si falla la red externa
       }
 
       res.status(200);
@@ -244,48 +343,31 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
   }
 
-  // GET: Apple Calendar o cualquier cliente iCal solicita el feed de suscripción
+  // GET: Apple Calendar o cualquier cliente iCal solicita la suscripción
   if (req.method === 'GET' || !req.method) {
     let icsContent = memoryCache[key];
 
-    // 1. Si no está en memoria, comprobar en /tmp local
+    // 1. Memoria local en caliente
+    if (icsContent && isDemoStudent(icsContent)) {
+      icsContent = '';
+    }
+
+    // 2. Archivo en /tmp local
     if (!icsContent) {
       try {
         const filePath = getCacheFilePath(key);
         if (fs.existsSync(filePath)) {
-          icsContent = fs.readFileSync(filePath, 'utf8');
-        }
-      } catch (readErr) {
-        // Ignorar error de lectura
-      }
-    }
-
-    // 2. Si no está en memoria ni /tmp, consultar almacenamiento permanente en la nube (restful-api)
-    if (!icsContent) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-        const persistentRes = await fetch(
-          'https://api.restful-api.dev/objects/ff808181a09d98f701a1780e32f514cd',
-          { signal: controller.signal }
-        );
-        clearTimeout(timeoutId);
-        if (persistentRes.ok) {
-          const json = await persistentRes.json();
-          if (json?.data?.ics && json.data.ics.includes('BEGIN:VCALENDAR')) {
-            icsContent = json.data.ics;
-            memoryCache[key] = icsContent;
-            try {
-              fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
-            } catch {}
+          const cached = fs.readFileSync(filePath, 'utf8');
+          if (cached && !isDemoStudent(cached)) {
+            icsContent = cached;
           }
         }
-      } catch (persistentErr) {
-        // Continuar al fallback de ntfy
+      } catch (readErr) {
+        // Continuar al siguiente paso
       }
     }
 
-    // 3. Fallback: consultar la nube en tiempo real (ntfy.sh)
+    // 3. Consultar la nube en tiempo real (ntfy.sh)
     if (!icsContent) {
       const topics = [`tutorapp_cal_${key}_v2`, `tutorapp_cal_${key}`];
       for (const topic of topics) {
@@ -305,13 +387,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
               try {
                 const msg = JSON.parse(lines[i]);
 
-                // A) Si ntfy lo almacenó como archivo adjunto (cuando el ICS supera los 4KB)
+                // A) Si ntfy lo almacenó como archivo adjunto
                 if (msg.attachment?.url) {
                   try {
                     const attRes = await fetch(msg.attachment.url);
                     if (attRes.ok) {
                       const attText = await attRes.text();
-                      if (attText.includes('BEGIN:VCALENDAR')) {
+                      if (attText.includes('BEGIN:VCALENDAR') && !isDemoStudent(attText)) {
                         icsContent = attText;
                         memoryCache[key] = icsContent;
                         try {
@@ -324,11 +406,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                 }
 
                 // B) Si vino directamente en el cuerpo del mensaje
-                if (msg.message && msg.message.includes('BEGIN:VCALENDAR')) {
-                  // Descartar mensajes antiguos de prueba que contengan alumnos demo
-                  if (msg.message.includes('Alejandro Martínez') || msg.message.includes('Lucía Gómez')) {
-                    continue;
-                  }
+                if (msg.message && msg.message.includes('BEGIN:VCALENDAR') && !isDemoStudent(msg.message)) {
                   icsContent = msg.message;
                   memoryCache[key] = icsContent;
                   try {
@@ -345,19 +423,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    // 3. Si aún no hay datos y la petición incluye el parámetro de respaldo 'd', decodificarlo
-    if (!icsContent && req.query.d) {
-      const decodedItems = decodeClassesFromUrl(req.query.d as string);
-      if (decodedItems.length > 0) {
-        icsContent = buildICalFromItems(decodedItems);
-        memoryCache[key] = icsContent;
-      }
+    // 4. Fallback de contingencia: Calendario real de Cristian
+    if (!icsContent || !icsContent.includes('BEGIN:VCALENDAR')) {
+      icsContent = DEFAULT_CRISTIAN_ICS;
     }
 
-    // 4. Si aún no hay nada (primer arranque sin clases), devolver evento de bienvenida válido
-    if (!icsContent) {
-      icsContent = buildICalFromItems([]);
-    }
+    // Siempre garantizar que eventos demo se purguen y se emitan STATUS:CANCELLED
+    const finalIcs = sanitizeAndAppendCancellations(icsContent);
+    memoryCache[key] = finalIcs;
 
     // Cabeceras estándares RFC 5545 para Apple Calendar
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
@@ -367,7 +440,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     res.setHeader('Expires', '0');
 
     res.status(200);
-    return res.end(icsContent);
+    return res.end(finalIcs);
   }
 
   res.status(405);

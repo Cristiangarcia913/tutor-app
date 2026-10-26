@@ -116,6 +116,10 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
         db.getAllSubjects(),
         db.getSettings(),
       ]);
+      // Si no hay alumnos reales (p. ej. primer arranque en nuevo navegador o crawler), NO sobreescribir el calendario
+      if (!allStudents || allStudents.length === 0) {
+        return false;
+      }
       const studentMap: Record<string, Student> = {};
       allStudents.forEach((s) => {
         studentMap[s.id] = s;
@@ -141,10 +145,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
     const init = async () => {
       try {
         await db.initializeDatabase();
-        const empty = await db.isDatabaseEmpty();
-        if (empty) {
-          await seedDatabase();
-        }
+        // NUNCA auto-seed de alumnos demo en producción
         if (mounted) {
           setIsReady(true);
           triggerCalendarSync();

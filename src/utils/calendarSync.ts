@@ -251,17 +251,16 @@ export const syncCalendarToServer = async (
           updatedAt: new Date().toISOString(),
         }),
       }),
-      fetch('https://api.restful-api.dev/objects/ff808181a09d98f701a1780e32f514cd', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: `tutorapp_cal_${feedKey}`,
-          data: { ics: icsContent },
-        }),
-      }),
       fetch(`https://ntfy.sh/tutorapp_cal_${feedKey}_v2`, {
+        method: 'POST',
+        body: icsContent,
+        headers: {
+          'Title': 'TutorApp Calendar Sync',
+          'Tags': 'calendar',
+          'Filename': 'calendar.ics',
+        },
+      }),
+      fetch(`https://ntfy.sh/tutorapp_cal_${feedKey}`, {
         method: 'POST',
         body: icsContent,
         headers: {
