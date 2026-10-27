@@ -85,11 +85,22 @@ export default function RootLayout() {
               -webkit-text-size-adjust: 100%;
               -webkit-tap-highlight-color: transparent;
             }
-            /* Garantizar que el menú inferior nunca sea tapado por la barra de Safari o el home bar */
+            /* Garantizar que los iconos y etiquetas del menú inferior se anclen arriba y dejen 48px libres abajo para la barra flotante de Safari */
             div[role="tablist"] {
-              padding-bottom: max(28px, env(safe-area-inset-bottom, 28px)) !important;
-              min-height: calc(56px + max(28px, env(safe-area-inset-bottom, 28px))) !important;
+              height: 104px !important;
+              min-height: 104px !important;
+              padding-top: 6px !important;
+              padding-bottom: 46px !important;
               box-sizing: border-box !important;
+              align-items: flex-start !important;
+            }
+            div[role="tablist"] [role="tab"],
+            div[role="tablist"] a,
+            div[role="tablist"] button {
+              justify-content: flex-start !important;
+              padding-top: 4px !important;
+              height: 52px !important;
+              max-height: 52px !important;
             }
           `;
           document.head.appendChild(style);

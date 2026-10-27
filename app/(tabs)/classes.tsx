@@ -909,7 +909,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 8,
-    paddingBottom: 110,
+    paddingBottom: 135,
   },
 
   /* CALENDARIO MENSUAL CUADRICULA */

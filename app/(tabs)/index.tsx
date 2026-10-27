@@ -199,7 +199,7 @@ export default function DashboardScreen() {
           </View>
 
           <ScrollView
-            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 125 }]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />

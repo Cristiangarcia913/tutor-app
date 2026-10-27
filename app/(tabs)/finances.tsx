@@ -454,7 +454,7 @@ export default function FinancesScreen() {
             keyExtractor={(item) => item.student.id}
             contentContainerStyle={[
               styles.listContent,
-              { paddingBottom: insets.bottom + 90 },
+              { paddingBottom: insets.bottom + 125 },
             ]}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -690,7 +690,7 @@ export default function FinancesScreen() {
           keyExtractor={(item) => item.student.id}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 90 },
+            { paddingBottom: insets.bottom + 125 },
           ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />

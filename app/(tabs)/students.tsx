@@ -156,7 +156,7 @@ export default function StudentsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 90 },
+            { paddingBottom: insets.bottom + 125 },
           ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
