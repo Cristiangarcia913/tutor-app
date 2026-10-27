@@ -33,7 +33,7 @@ async function runTests() {
     assert(calendarCode.includes('sanitizeAndAppendCancellations'), 'Contiene función de sanitización y cancelación forzada');
     assert(calendarCode.includes('FAKE_UIDS_TO_CANCEL'), 'Contiene lista negra de UIDs demo para emitir STATUS:CANCELLED');
     assert(calendarCode.includes('isDemoStudent'), 'Contiene filtro activo de detección de nombres demo');
-    assert(calendarCode.includes('DEFAULT_CRISTIAN_ICS'), 'Contiene feed de respaldo con las 14 clases reales de Claudia y Hugo');
+    assert(calendarCode.includes('DEFAULT_FALLBACK_ICS'), 'Contiene feed de respaldo neutral');
     assert(!calendarCode.includes('restful-api.dev'), 'Eliminada dependencia fallida de restful-api.dev');
 
     // Prueba de la lógica de cancelación y filtrado

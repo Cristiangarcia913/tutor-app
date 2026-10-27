@@ -108,14 +108,14 @@ const sanitizeAndAppendCancellations = (icsContent: string): string => {
   return cleanedIcs;
 };
 
-// Calendario base real de Cristian verificado para contingencia
-const DEFAULT_CRISTIAN_ICS = `BEGIN:VCALENDAR
+// Calendario base de respaldo en caso de contingencia
+const DEFAULT_FALLBACK_ICS = `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//Cristian//TutorApp Clases//ES
+PRODID:-//TutorApp//Clases Particulares//ES
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
-X-WR-CALNAME:Clases Cristian
-X-WR-CALDESC:Clases Particulares de Matemáticas
+X-WR-CALNAME:TutorApp Clases
+X-WR-CALDESC:Sincronización de Clases Particulares
 X-WR-TIMEZONE:Europe/Madrid
 BEGIN:VTIMEZONE
 TZID:Europe/Madrid
@@ -136,143 +136,13 @@ RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU
 END:STANDARD
 END:VTIMEZONE
 BEGIN:VEVENT
-UID:tutorapp-mvmodcokn13coo-2026-10-28@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261028T173000
-DTEND:20261028T183000
-SUMMARY:Clase - Claudia
+UID:tutorapp-bienvenida@tutorapp.es
+DTSTAMP:20261027T200000Z
+DTSTART:20261028T170000
+DTEND:20261028T180000
+SUMMARY:TutorApp - Calendario Conectado
 LOCATION:Presencial
-DESCRIPTION:Clase con Claudia\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmn8qok9xeiq7-2026-10-28@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261028T184500
-DTEND:20261028T194500
-SUMMARY:Clase - Hugo
-LOCATION:Presencial
-DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmodcokpmy20r-2026-10-26@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261026T170000
-DTEND:20261026T180000
-SUMMARY:Clase - Claudia
-LOCATION:Presencial
-DESCRIPTION:Clase con Claudia\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmn8qokm01xa3-2026-10-26@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261026T181500
-DTEND:20261026T191500
-SUMMARY:Clase - Hugo
-LOCATION:Presencial
-DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvobpx7ngtqqtf-2026-10-24@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261024T120000
-DTEND:20261024T130000
-SUMMARY:Clase - Hugo
-LOCATION:Presencial
-DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmodcokocgt3y-2026-10-21@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261021T153000
-DTEND:20261021T163000
-SUMMARY:Clase - Claudia
-LOCATION:Presencial
-DESCRIPTION:Clase con Claudia\\nEstado: Pagada ✓\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmn8qokirxj50-2026-10-21@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261021T184500
-DTEND:20261021T194500
-SUMMARY:Clase - Hugo
-LOCATION:Presencial
-DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmodcokfz3huu-2026-10-14@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261014T153000
-DTEND:20261014T163000
-SUMMARY:Clase - Claudia
-LOCATION:Presencial
-DESCRIPTION:Clase con Claudia\\nEstado: Pagada ✓\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmn8qok2ps5f7-2026-10-14@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261014T184500
-DTEND:20261014T194500
-SUMMARY:Clase - Hugo
-LOCATION:Presencial
-DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvobpx7nlhbi91-2026-10-10@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261010T120000
-DTEND:20261010T130000
-SUMMARY:Clase - Hugo
-LOCATION:Presencial
-DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual • Reprogramada del 2026-10-12 (Cambio por festivo)
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmodcok8du4m7-2026-10-07@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261007T153000
-DTEND:20261007T163000
-SUMMARY:Clase - Claudia
-LOCATION:Presencial
-DESCRIPTION:Clase con Claudia\\nEstado: Pagada ✓\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmn8qokvntunm-2026-10-07@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261007T184500
-DTEND:20261007T194500
-SUMMARY:Clase - Hugo
-LOCATION:Presencial
-DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmodcokgawrp6-2026-10-05@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261005T170000
-DTEND:20261005T180000
-SUMMARY:Clase - Claudia
-LOCATION:Presencial
-DESCRIPTION:Clase con Claudia\\nEstado: Pagada ✓\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
-STATUS:CONFIRMED
-END:VEVENT
-BEGIN:VEVENT
-UID:tutorapp-mvmn8qoktbm1hc-2026-10-05@tutorapp.es
-DTSTAMP:20261026T192441Z
-DTSTART:20261005T181500
-DTEND:20261005T191500
-SUMMARY:Clase - Hugo
-LOCATION:Presencial
-DESCRIPTION:Clase con Hugo\\nEstado: Pendiente de cobro ⏳\\nDuración: 60 min\\nNotas: Clase programada según horario habitual
+DESCRIPTION:Tus clases sincronizadas se mostrarán aquí automáticamente.
 STATUS:CONFIRMED
 END:VEVENT
 END:VCALENDAR`;
@@ -423,9 +293,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    // 4. Fallback de contingencia: Calendario real de Cristian
+    // 4. Fallback de contingencia: Calendario base neutral
     if (!icsContent || !icsContent.includes('BEGIN:VCALENDAR')) {
-      icsContent = DEFAULT_CRISTIAN_ICS;
+      icsContent = DEFAULT_FALLBACK_ICS;
     }
 
     // Siempre garantizar que eventos demo se purguen y se emitan STATUS:CANCELLED
