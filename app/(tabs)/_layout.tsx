@@ -1,7 +1,15 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, StyleSheet } from 'react-native';
-import { Colors, FontSizes, Spacing } from '../../src/constants/theme';
+import { Colors } from '../../src/constants/theme';
+
+const isIosWeb =
+  Platform.OS === 'web' &&
+  typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
+const isIosDevice = Platform.OS === 'ios' || isIosWeb;
 
 export default function TabLayout() {
   return (
@@ -23,7 +31,7 @@ export default function TabLayout() {
           title: 'Inicio',
           tabBarLabel: 'Inicio',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={21} color={color} />
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -33,7 +41,7 @@ export default function TabLayout() {
           title: 'Alumnos',
           tabBarLabel: 'Alumnos',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'people' : 'people-outline'} size={21} color={color} />
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -43,7 +51,7 @@ export default function TabLayout() {
           title: 'Clases',
           tabBarLabel: 'Clases',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={21} color={color} />
+            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -53,7 +61,7 @@ export default function TabLayout() {
           title: 'Finanzas',
           tabBarLabel: 'Finanzas',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={21} color={color} />
+            <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={22} color={color} />
           ),
         }}
       />
@@ -66,9 +74,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopColor: Colors.border,
     borderTopWidth: 1,
-    height: Platform.OS === 'ios' ? 88 : (Platform.OS === 'web' ? 70 : 64),
-    paddingTop: 4,
-    paddingBottom: Platform.OS === 'ios' ? 28 : (Platform.OS === 'web' ? 12 : 4),
+    height: isIosDevice ? 92 : 72,
+    paddingTop: 6,
+    paddingBottom: isIosDevice ? 32 : 12,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
@@ -77,14 +85,14 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   tabBarLabel: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '700',
-    marginTop: 1,
-    marginBottom: 0,
+    marginTop: 2,
+    marginBottom: 2,
     letterSpacing: -0.2,
   },
   tabBarItem: {
-    paddingTop: 3,
+    paddingTop: 4,
     paddingBottom: 2,
     justifyContent: 'center',
     alignItems: 'center',

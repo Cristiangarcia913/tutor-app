@@ -73,6 +73,27 @@ export default function RootLayout() {
           'content',
           'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'
         );
+
+        let style = document.getElementById('ios-safari-fixes');
+        if (!style) {
+          style = document.createElement('style');
+          style.id = 'ios-safari-fixes';
+          style.innerHTML = `
+            html, body, #root {
+              height: 100%;
+              min-height: 100dvh;
+              -webkit-text-size-adjust: 100%;
+              -webkit-tap-highlight-color: transparent;
+            }
+            /* Garantizar que el menú inferior nunca sea tapado por la barra de Safari o el home bar */
+            div[role="tablist"] {
+              padding-bottom: max(28px, env(safe-area-inset-bottom, 28px)) !important;
+              min-height: calc(56px + max(28px, env(safe-area-inset-bottom, 28px))) !important;
+              box-sizing: border-box !important;
+            }
+          `;
+          document.head.appendChild(style);
+        }
       } catch (e) {
         // Ignorar si no está disponible document
       }

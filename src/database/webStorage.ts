@@ -996,7 +996,7 @@ export const webGetMonthlyIncome = async (
 export const webExportData = async (): Promise<any> => {
   return {
     exportDate: new Date().toISOString(),
-    version: '1.0.0',
+    version: '1.2.0',
     students: await webGetAllStudents(),
     subjects: await webGetAllSubjects(),
     classSessions: await webGetAllClasses(),
