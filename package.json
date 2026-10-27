@@ -26,6 +26,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export -p web",
+    "test": "node scripts/run-full-audit.js && node scripts/test-integration-e2e.js",
     "postinstall": "node scripts/patch-expo.js",
     "lint": "eslint .",
     "build:ios": "eas build --platform ios",
