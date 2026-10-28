@@ -35,6 +35,14 @@ async function runTests() {
     assert(calendarCode.includes('isDemoStudent'), 'Contiene filtro activo de detección de nombres demo');
     assert(calendarCode.includes('DEFAULT_FALLBACK_ICS'), 'Contiene feed de respaldo neutral');
     assert(!calendarCode.includes('restful-api.dev'), 'Eliminada dependencia fallida de restful-api.dev');
+    assert(calendarCode.includes('generateIcsFromCompact'), 'Reconstruye automáticamente ICS desde JSON compacto');
+    assert(calendarCode.includes('computeSimpleETag'), 'Genera ETag para validación HTTP RFC 7232');
+    assert(calendarCode.includes('res.status(304)'), 'Salvaguarda RFC 5545: devuelve 304 y nunca 200 vacío en arranque frío');
+
+    // Comprobamos que calendarSync.ts no envía Filename para evitar caducidad de adjunto (3h)
+    const syncCode = fs.readFileSync(path.join(__dirname, '..', 'src', 'utils', 'calendarSync.ts'), 'utf8');
+    assert(!syncCode.includes("'Filename': 'calendar.ics'"), 'Protección TTL: eliminada cabecera Filename para que ntfy no purgue en 3 horas');
+    assert(syncCode.includes('buildCompactClassList'), 'calendarSync exporta serializador ultraligero de clases');
 
     // Prueba de la lógica de cancelación y filtrado
     const isDemoStudent = (text) => {
@@ -123,6 +131,7 @@ async function runTests() {
     const vercelConfig = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8'));
     assert(vercelConfig.outputDirectory === 'dist', 'Directorio de salida Vercel configurado en "dist"');
     assert(vercelConfig.rewrites.some(r => r.source === '/calendar.ics' && r.destination === '/api/calendar'), 'Ruta limpia /calendar.ics mapeada al API');
+    assert(vercelConfig.headers.some(h => h.source === '/calendar.ics' && h.headers.some(hdr => hdr.key === 'Cache-Control' && hdr.value.includes('stale-while-revalidate'))), 'Cabecera Cache-Control con stale-while-revalidate configurada');
 
     const appJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'app.json'), 'utf8'));
     assert(appJson.expo.version === '1.2.0', 'Versión en app.json coincide con v1.2.0');

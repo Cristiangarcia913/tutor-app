@@ -134,16 +134,25 @@ export const generateICalendarData = (
   return lines.join('\r\n');
 };
 
-/**
- * Codifica de manera compacta las clases para incluirlas en la URL
- */
-export const encodeClassesForUrl = (
+export interface CompactClassItem {
+  id: string;
+  s: string;
+  d: string;
+  t: string;
+  e: string;
+  u: number;
+  p: number;
+  l: string;
+  n: string;
+}
+
+export const buildCompactClassList = (
   classes: ClassSession[] = [],
   students: Record<string, Student> = {}
-): string => {
-  const compact = classes
+): CompactClassItem[] => {
+  return classes
     .filter((c) => c.status !== 'cancelled')
-    .slice(0, 100)
+    .slice(0, 150)
     .map((c) => {
       const student = students[c.studentId];
       const studentName = student ? `${student.firstName} ${student.lastName}`.trim() : 'Alumno';
@@ -168,7 +177,16 @@ export const encodeClassesForUrl = (
         n: c.notes || '',
       };
     });
+};
 
+/**
+ * Codifica de manera compacta las clases para incluirlas en la URL
+ */
+export const encodeClassesForUrl = (
+  classes: ClassSession[] = [],
+  students: Record<string, Student> = {}
+): string => {
+  const compact = buildCompactClassList(classes, students);
   if (compact.length === 0) return '';
 
   try {
@@ -235,11 +253,17 @@ export const syncCalendarToServer = async (
 
   try {
     const icsContent = generateICalendarData(classes, students, subjects, teacherName);
+    const compactList = buildCompactClassList(classes, students);
+    const compactJsonString = JSON.stringify(compactList);
     
     // Guardar también copia local para descarga offline directa
     localStorage.setItem('tutorapp_cached_ics', icsContent);
 
+    // Sincronización multi-canal sin cabecera 'Filename' para evitar expiración de adjuntos (3 horas)
+    const textBody = icsContent.length < 3900 ? icsContent : compactJsonString;
+
     const [apiRes] = await Promise.allSettled([
+      // 1. API Vercel con ICS y JSON compacto
       fetch(`/api/calendar?key=${feedKey}`, {
         method: 'POST',
         headers: {
@@ -248,25 +272,35 @@ export const syncCalendarToServer = async (
         body: JSON.stringify({
           key: feedKey,
           ics: icsContent,
+          compact: compactList,
           updatedAt: new Date().toISOString(),
         }),
       }),
-      fetch(`https://ntfy.sh/tutorapp_cal_${feedKey}_v2`, {
+      // 2. ntfy.sh JSON compacto (< 3KB nunca expira como adjunto)
+      fetch(`https://ntfy.sh/tutorapp_cal_json_${feedKey}`, {
         method: 'POST',
-        body: icsContent,
+        body: compactJsonString,
         headers: {
-          'Title': 'TutorApp Calendar Sync',
-          'Tags': 'calendar',
-          'Filename': 'calendar.ics',
+          Title: 'TutorApp JSON Sync',
+          Tags: 'calendar',
         },
       }),
-      fetch(`https://ntfy.sh/tutorapp_cal_${feedKey}`, {
+      // 3. ntfy.sh v3 canal de texto directo
+      fetch(`https://ntfy.sh/tutorapp_cal_${feedKey}_v3`, {
         method: 'POST',
-        body: icsContent,
+        body: textBody,
         headers: {
-          'Title': 'TutorApp Calendar Sync',
-          'Tags': 'calendar',
-          'Filename': 'calendar.ics',
+          Title: 'TutorApp Calendar Sync',
+          Tags: 'calendar',
+        },
+      }),
+      // 4. ntfy.sh v2 canal de texto directo
+      fetch(`https://ntfy.sh/tutorapp_cal_${feedKey}_v2`, {
+        method: 'POST',
+        body: textBody,
+        headers: {
+          Title: 'TutorApp Calendar Sync',
+          Tags: 'calendar',
         },
       }),
     ]);

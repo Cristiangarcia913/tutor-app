@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
+import { Platform } from 'react-native';
 import * as db from '../database/database';
 import { seedDatabase } from '../database/seed';
 import { syncCalendarToServer } from '../utils/calendarSync';
@@ -160,6 +161,44 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       mounted = false;
     };
   }, []);
+
+  // Sincronización proactiva en segundo plano cada vez que el usuario desbloquea el iPhone o vuelve a la app
+  useEffect(() => {
+    if (!isReady || Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    // 1. Sincronizar al desbloquear la pantalla o cambiar de pestaña
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        triggerCalendarSync();
+      }
+    };
+
+    // 2. Sincronizar al ganar foco en la ventana
+    const handleFocus = () => {
+      triggerCalendarSync();
+    };
+
+    // 3. Sincronizar al recuperar conexión a internet
+    const handleOnline = () => {
+      triggerCalendarSync();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
+
+    // 4. Heartbeat automático cada 10 minutos mientras la aplicación esté en memoria
+    const intervalId = setInterval(() => {
+      triggerCalendarSync();
+    }, 10 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
+      clearInterval(intervalId);
+    };
+  }, [isReady]);
 
   const value: DatabaseContextType = useMemo(() => {
     const loadStudents = async (activeOnly: boolean = false) => {
