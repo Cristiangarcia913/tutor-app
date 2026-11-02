@@ -36,6 +36,8 @@ async function runTests() {
     assert(calendarCode.includes('DEFAULT_FALLBACK_ICS'), 'Contiene feed de respaldo neutral');
     assert(!calendarCode.includes('restful-api.dev'), 'Eliminada dependencia fallida de restful-api.dev');
     assert(calendarCode.includes('generateIcsFromCompact'), 'Reconstruye automáticamente ICS desde JSON compacto');
+    assert(calendarCode.includes('extractIcsFromMessage'), 'Contiene extractor con soporte para mensajes en línea y archivos adjuntos');
+    assert(calendarCode.includes('parsePayloadToIcs'), 'Contiene parser universal para formatos ICS y JSON');
     assert(calendarCode.includes('computeSimpleETag'), 'Genera ETag para validación HTTP RFC 7232');
     assert(calendarCode.includes('res.status(304)'), 'Salvaguarda RFC 5545: devuelve 304 y nunca 200 vacío en arranque frío');
 

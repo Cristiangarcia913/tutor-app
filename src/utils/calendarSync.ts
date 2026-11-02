@@ -165,6 +165,9 @@ export const buildCompactClassList = (
       const duration = c.duration || 60;
       const endTime = c.endTime && c.endTime > startTime ? c.endTime : computeEndTime(startTime, duration);
 
+      const cleanNotes =
+        c.notes && c.notes !== 'Clase programada según horario habitual' ? c.notes : '';
+
       return {
         id: c.id,
         s: studentName,
@@ -174,7 +177,7 @@ export const buildCompactClassList = (
         u: duration,
         p: c.isPaid ? 1 : 0,
         l: loc,
-        n: c.notes || '',
+        n: cleanNotes,
       };
     });
 };

@@ -442,24 +442,6 @@ export default function ClassDetailScreen() {
             )}
           </View>
         </Card>
-
-        {/* Payment Action */}
-        <Button
-          title="Registrar Pago para este Alumno"
-          variant="secondary"
-          size="lg"
-          onPress={() =>
-            router.push({
-              pathname: '/payment/new',
-              params: {
-                studentId: session.studentId,
-                amount: session.totalAmount.toString(),
-              },
-            })
-          }
-          icon="cash-outline"
-          style={{ marginTop: Spacing.xs }}
-        />
       </ScrollView>
 
       {/* Confirm Delete Dialog */}

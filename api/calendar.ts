@@ -41,7 +41,7 @@ const getCacheFilePath = (key: string) => {
   return path.join('/tmp', `tutorapp_cal_${safeKey}.ics`);
 };
 
-// Lista de UIDs ficticios generados por el seeder demo que deben ser cancelados explícitamente en Apple Calendar
+// Lista de UIDs ficticios generados por el seeder demo antiguo que deben ser cancelados explícitamente en Apple Calendar
 const FAKE_UIDS_TO_CANCEL = [
   'tutorapp-mvplw1m790irna-2026-10-31@tutorapp.es',
   'tutorapp-mvplw1m74roglw-2026-10-29@tutorapp.es',
@@ -67,17 +67,14 @@ const isDemoStudent = (text: string): boolean => {
   if (!text) return false;
   const t = text.toLowerCase();
   return (
-    t.includes('sofía') ||
-    t.includes('sofia') ||
-    t.includes('pablo') ||
-    t.includes('carlos') ||
-    t.includes('maría') ||
-    t.includes('maria') ||
-    t.includes('laura') ||
-    t.includes('alejandro') ||
-    t.includes('lucía') ||
-    t.includes('lucia') ||
-    t.includes('marcos')
+    t.includes('carlos martínez') ||
+    t.includes('carlos martinez') ||
+    t.includes('lucía gómez') ||
+    t.includes('lucia gomez') ||
+    t.includes('marcos torres') ||
+    t.includes('alejandro ruiz') ||
+    t.includes('sofía navarro') ||
+    t.includes('sofia navarro')
   );
 };
 
@@ -126,7 +123,7 @@ const sanitizeAndAppendCancellations = (icsContent: string): string => {
   return cleanedIcs;
 };
 
-// Generador de iCalendar RFC 5545 a partir de payload JSON compacto (< 3KB)
+// Generador de iCalendar RFC 5545 a partir de payload JSON compacto
 const generateIcsFromCompact = (items: CompactClassItem[]): string => {
   const now = new Date()
     .toISOString()
@@ -202,6 +199,54 @@ const generateIcsFromCompact = (items: CompactClassItem[]): string => {
 
   lines.push('END:VCALENDAR');
   return lines.join('\r\n');
+};
+
+const parsePayloadToIcs = (rawText: string): string => {
+  if (!rawText) return '';
+  const trimmed = rawText.trim();
+  if (trimmed.includes('BEGIN:VCALENDAR')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const items: CompactClassItem[] = Array.isArray(parsed)
+        ? parsed
+        : parsed.classes || [];
+      if (items.length > 0) {
+        return generateIcsFromCompact(items);
+      }
+    } catch {}
+  }
+  return '';
+};
+
+// Extrae el calendario ICS ya sea que el mensaje venga en línea o en archivo adjunto (cuando supera 4KB en ntfy)
+const extractIcsFromMessage = async (msg: any): Promise<string> => {
+  if (!msg) return '';
+
+  // 1. Mensaje en línea directo
+  if (msg.message) {
+    const parsed = parsePayloadToIcs(msg.message);
+    if (parsed) return parsed;
+  }
+
+  // 2. Archivo adjunto (ntfy convierte automáticamente mensajes > 4096 bytes en attachment)
+  if (msg.attachment?.url) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const attRes = await fetch(msg.attachment.url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (attRes.ok) {
+        const attText = await attRes.text();
+        const parsed = parsePayloadToIcs(attText);
+        if (parsed) return parsed;
+      }
+    } catch {}
+  }
+
+  return '';
 };
 
 const computeSimpleETag = (str: string): string => {
@@ -290,8 +335,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         // Ignorar restricciones en entornos serverless de solo lectura
       }
 
-      // Sincronizar en la nube en tiempo real SIN cabecera 'Filename' para evitar expiración de adjunto (3h)
-      // Usar payload JSON compacto (< 3KB) como garantía permanente que nunca se convierte en adjunto
+      // Sincronizar en la nube en tiempo real SIN cabecera 'Filename'
       const compactJsonStr = compactData ? JSON.stringify(compactData) : '';
       const cloudPromises: Promise<any>[] = [];
 
@@ -349,7 +393,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     let icsContent = memoryCache[key];
 
     // 1. Memoria local en caliente
-    if (icsContent && isDemoStudent(icsContent)) {
+    if (icsContent && !icsContent.includes('BEGIN:VCALENDAR')) {
       icsContent = '';
     }
 
@@ -359,7 +403,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         const filePath = getCacheFilePath(key);
         if (fs.existsSync(filePath)) {
           const cached = fs.readFileSync(filePath, 'utf8');
-          if (cached && !isDemoStudent(cached)) {
+          if (cached && cached.includes('BEGIN:VCALENDAR')) {
             icsContent = cached;
           }
         }
@@ -368,53 +412,19 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    // 3. Consultar la nube JSON compacto persistente (< 3KB nunca expira por adjunto)
+    // 3. Consultar la nube en tiempo real a través de los topics (JSON y v3/v2) con soporte para adjuntos
     if (!icsContent) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const jsonRes = await fetch(`https://ntfy.sh/tutorapp_cal_json_${key}/json?poll=1`, {
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
+      const topics = [
+        `tutorapp_cal_json_${key}`,
+        `tutorapp_cal_${key}_v3`,
+        `tutorapp_cal_${key}_v2`,
+      ];
 
-        if (jsonRes.ok) {
-          const rawText = await jsonRes.text();
-          const lines = rawText.trim().split('\n');
-          for (let i = lines.length - 1; i >= 0; i--) {
-            try {
-              const msg = JSON.parse(lines[i]);
-              const payloadText = msg.message || '';
-              if (payloadText.startsWith('[') || payloadText.startsWith('{')) {
-                const parsed = JSON.parse(payloadText);
-                const items: CompactClassItem[] = Array.isArray(parsed)
-                  ? parsed
-                  : parsed.classes || [];
-                if (items.length > 0) {
-                  icsContent = generateIcsFromCompact(items);
-                  memoryCache[key] = icsContent;
-                  try {
-                    fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
-                  } catch {}
-                  break;
-                }
-              }
-            } catch {}
-          }
-        }
-      } catch (jsonFetchErr) {
-        // Continuar al siguiente topic
-      }
-    }
-
-    // 4. Consultar topics v3 y v2
-    if (!icsContent) {
-      const topics = [`tutorapp_cal_${key}_v3`, `tutorapp_cal_${key}_v2`];
       for (const topic of topics) {
         if (icsContent) break;
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500);
+          const timeoutId = setTimeout(() => controller.abort(), 4500);
           const cloudRes = await fetch(`https://ntfy.sh/${topic}/json?poll=1`, {
             signal: controller.signal,
           });
@@ -426,48 +436,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             for (let i = lines.length - 1; i >= 0; i--) {
               try {
                 const msg = JSON.parse(lines[i]);
-
-                // A) Si vino directamente en el cuerpo del mensaje
-                if (msg.message && !isDemoStudent(msg.message)) {
-                  if (msg.message.includes('BEGIN:VCALENDAR')) {
-                    icsContent = msg.message;
-                    memoryCache[key] = icsContent;
-                    try {
-                      fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
-                    } catch {}
-                    break;
-                  } else if (msg.message.startsWith('[') || msg.message.startsWith('{')) {
-                    const parsed = JSON.parse(msg.message);
-                    const items: CompactClassItem[] = Array.isArray(parsed)
-                      ? parsed
-                      : parsed.classes || [];
-                    if (items.length > 0) {
-                      icsContent = generateIcsFromCompact(items);
-                      memoryCache[key] = icsContent;
-                      try {
-                        fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
-                      } catch {}
-                      break;
-                    }
-                  }
-                }
-
-                // B) Si vino en adjunto (para compatibilidad hacia atrás)
-                if (msg.attachment?.url) {
+                const parsedIcs = await extractIcsFromMessage(msg);
+                if (parsedIcs && parsedIcs.includes('BEGIN:VCALENDAR')) {
+                  icsContent = parsedIcs;
+                  memoryCache[key] = icsContent;
                   try {
-                    const attRes = await fetch(msg.attachment.url);
-                    if (attRes.ok) {
-                      const attText = await attRes.text();
-                      if (attText.includes('BEGIN:VCALENDAR') && !isDemoStudent(attText)) {
-                        icsContent = attText;
-                        memoryCache[key] = icsContent;
-                        try {
-                          fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
-                        } catch {}
-                        break;
-                      }
-                    }
-                  } catch (attErr) {}
+                    fs.writeFileSync(getCacheFilePath(key), icsContent, 'utf8');
+                  } catch {}
+                  break;
                 }
               } catch {}
             }
@@ -478,7 +454,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    // 5. EVALUACIÓN Y SALVAGUARDA RFC 5545 / WebCal
+    // 4. EVALUACIÓN Y SALVAGUARDA RFC 5545 / WebCal
     if (icsContent && icsContent.includes('BEGIN:VCALENDAR')) {
       const finalIcs = sanitizeAndAppendCancellations(icsContent);
       memoryCache[key] = finalIcs;

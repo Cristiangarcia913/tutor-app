@@ -233,8 +233,16 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
       getStudent: async (id: string) => db.getStudentById(id),
       getStudentByAccessCode: async (code: string) => db.getStudentByAccessCode(code),
       getStudentWithDetails: async (id: string) => db.getStudentWithDetails(id),
-      createStudent: async (data: StudentFormData) => db.createStudent(data),
-      updateStudent: async (id: string, data: Partial<StudentFormData>) => db.updateStudent(id, data),
+      createStudent: async (data: StudentFormData) => {
+        const res = await db.createStudent(data);
+        triggerCalendarSync();
+        return res;
+      },
+      updateStudent: async (id: string, data: Partial<StudentFormData>) => {
+        const res = await db.updateStudent(id, data);
+        triggerCalendarSync();
+        return res;
+      },
       deleteStudent: async (id: string) => {
         await db.deleteStudent(id);
         triggerCalendarSync();
